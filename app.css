@@ -1,0 +1,29 @@
+:root{--plum:#5A2438;--ink:#1E1B22;--bg:#F5F4F0;--card:#fff;--text:#1E1B22;--muted:#6F6A73;--line:#E3DFD7;--soft:#ECE7E0;--gold:#B48A4A;--ok:#2B6E53;--ok-bg:#E4F5EA;--bad:#B3261E;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#161318;--card:#231D26;--text:#F3EEF0;--muted:#B8AFB4;--line:#3A3038;--soft:#2E262E;--ok-bg:#1C3A2A}}
+*{box-sizing:inherit}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:19px;line-height:1.45;font-weight:500}
+h1,h2,h3{margin:0;line-height:1.1;font-weight:800}
+.top{background:var(--ink);color:#fff;padding:16px}
+.top h1{font-size:28px}.top h1 span{color:var(--gold)}.top p{margin:4px 0 0;color:#D6D0C8;font-size:16px}
+.wrap{max-width:720px;margin:0 auto;padding:18px 16px 80px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:18px;margin:0 0 16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;padding:16px 20px;font:inherit;font-weight:800;font-size:19px;background:var(--plum);color:#fff;width:100%;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--plum);border:2px solid var(--plum)}.btn.small{width:auto;padding:10px 14px;font-size:16px;border-radius:10px}.btn:disabled{opacity:.5}
+label{display:block;font-weight:800;font-size:17px;margin:14px 0 6px}label small{font-weight:600;color:var(--muted)}
+input,select,textarea{width:100%;padding:14px;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--text);font:inherit;font-size:19px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted)}.err{color:var(--bad);font-weight:700}
+.big{font-size:56px;font-weight:800;line-height:1;color:var(--plum)}@media (prefers-color-scheme:dark){.big{color:var(--gold)}}
+.pill{display:inline-block;padding:6px 12px;border-radius:999px;background:var(--soft);color:var(--plum);font-weight:800;font-size:15px}
+.stamps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.stamp{aspect-ratio:1;border-radius:16px;border:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:14px;font-weight:700;color:var(--muted)}
+.stamp.done{border:3px solid var(--plum);background:var(--soft);color:var(--text);transform:rotate(-2deg)}.stamp.done .mark{font-size:28px;color:var(--gold)}
+.stamp-anim{animation:pop .5s cubic-bezier(.2,1.4,.4,1)}@keyframes pop{0%{transform:scale(.3) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(-2deg);opacity:1}}
+.special{background:var(--soft);border-radius:12px;padding:12px 14px;margin:8px 0;font-size:17px}
+table{width:100%;border-collapse:collapse;font-size:17px}th,td{text-align:left;padding:10px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:14px;color:var(--muted)}.scrollx{overflow-x:auto}
+.hidden{display:none!important}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ok);color:#fff;padding:14px 18px;border-radius:14px;font-weight:800;font-size:18px;max-width:92vw;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}.toast.show{opacity:1}
+.poster{border:3px solid var(--ink);border-radius:18px;padding:22px 18px;text-align:center;background:#fff;color:#1E1B22;max-width:360px;margin:0 auto}.poster h3{font-size:26px;color:#5A2438}.poster .qr{display:flex;justify-content:center;margin:16px 0}
+footer{text-align:center;padding:24px 16px;border-top:2px solid var(--line);margin-top:8px;color:var(--muted);font-size:15px}footer a{color:var(--muted);text-decoration:none;font-weight:700}
+@media print{.top,.noprint,footer{display:none}.poster{border-color:#000;page-break-inside:avoid}}
