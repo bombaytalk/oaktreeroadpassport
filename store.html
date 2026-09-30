@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Oak Tree Road Passport — Store</title>
+<link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<header class="top"><h1>Oak Tree Road <span>Passport</span></h1><p>For stores · sign up once, see every scan</p></header>
+<main class="wrap">
+
+  <!-- signed out: apply OR sign in -->
+  <section id="out">
+    <div class="card" id="signin">
+      <h2 style="font-size:24px">Already approved? Sign in</h2>
+      <p class="muted" style="margin:6px 0 0">Use the email you gave when you signed up. We'll send a six-digit code.</p>
+      <label>Email</label><input id="si-email" inputmode="email" autocomplete="email" placeholder="you@yourstore.com">
+      <div style="margin-top:12px"><button class="btn" id="si-send">Send me a code</button></div>
+      <div id="si-step2" class="hidden"><label>Enter the code from your email</label><input id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"><div style="margin-top:12px"><button class="btn" id="si-verify">Sign in</button></div><p class="muted" style="font-size:15px">If the email has a button instead of a code, just tap the button.</p></div>
+    </div>
+
+    <div class="card" id="apply">
+      <h2 style="font-size:24px">New store? Add yours</h2>
+      <p class="muted" style="margin:6px 0 0">Only the store name and one contact are required. The organizer approves you, then your QR poster appears here.</p>
+      <label>Store name <small>(required)</small></label><input id="a-name">
+      <label>Type of store</label><select id="a-cat"><option value="">Choose…</option><option>Restaurant</option><option>Sweets & Snacks</option><option>Bakery</option><option>Coffee Shop</option><option>Grocery Store</option><option>Saree & Clothing</option><option>Jewelry Store</option><option>Beauty & Salon</option><option>Electronics</option><option>Services</option><option>Other</option></select>
+      <label>Email <small>(this becomes your sign-in)</small></label><input id="a-email" inputmode="email" placeholder="you@yourstore.com">
+      <label>Phone <small>(email or phone required)</small></label><input id="a-phone" inputmode="tel">
+      <label>Person of contact</label><input id="a-contact">
+      <label>Address on Oak Tree Road</label><input id="a-address">
+      <label>Website or Instagram</label><input id="a-web">
+      <label>Festival special <small>(what visitors see when they scan you)</small></label><textarea id="a-special" rows="2" placeholder="e.g. Free chai with any snack, Oct 15–16"></textarea>
+      <div style="margin-top:18px"><button class="btn" id="a-submit">Submit my store</button></div>
+      <p class="err" id="a-err"></p>
+      <div id="a-done" class="special hidden"><strong>Submitted.</strong> The organizer will review it. Once approved, sign in above with your email to get your QR poster.</div>
+    </div>
+  </section>
+
+  <!-- signed in -->
+  <section id="in" class="hidden">
+    <div class="row noprint" style="justify-content:space-between;margin-bottom:10px"><span class="muted" id="who"></span><button class="btn ghost small" id="signout">Sign out</button></div>
+    <div id="mine"></div>
+  </section>
+</main>
+<footer>Oak Tree Road Business Association · <a href="https://dotcodenetworks.com" target="_blank" rel="noopener">Powered by DotCode Networks</a></footer>
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+$('a-submit').addEventListener('click', async ()=>{
+  $('a-err').textContent='';
+  const p={name:$('a-name').value.trim(),category:$('a-cat').value,email:$('a-email').value.trim().toLowerCase(),phone:$('a-phone').value.trim(),contact:$('a-contact').value.trim(),address:$('a-address').value.trim(),website:$('a-web').value.trim(),special:$('a-special').value.trim()};
+  try{ $('a-submit').disabled=true; await rpc('store_apply',{p_org_slug:OTR.org,p:p}); $('a-done').classList.remove('hidden'); $('a-submit').classList.add('hidden'); toast('Submitted for approval'); }
+  catch(e){ $('a-err').textContent=e.message.replace(/^.*?: /,''); } finally{ $('a-submit').disabled=false; }
+});
+$('signout').addEventListener('click',signOut);
+
+wireSignIn(async user=>{
+  $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
+  await renderMine();
+  sb.channel('store-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'scans'},()=>renderMine()).on('postgres_changes',{event:'INSERT',schema:'public',table:'visits'},()=>renderMine()).subscribe();
+});
+
+async function renderMine(){
+  const {data:stores,error}=await sb.from('stores').select('*').order('name');
+  if(error){ toast(error.message,true); return; }
+  if(!stores.length){ $('mine').innerHTML='<div class="card"><h2 style="font-size:22px">No store is linked to this email yet</h2><p class="muted">If you just applied, the organizer hasn\'t approved it yet. If you think this is a mistake, contact the organizer.</p></div>'; return; }
+  const {data:scans}=await sb.from('scans').select('id,store_id,visitor_id,created_at,visitors(name,phone)').order('created_at',{ascending:false}).limit(500);
+  const {data:visits}=await sb.from('visits').select('store_id,visitor_id,created_at');
+  const today=new Date(); today.setHours(0,0,0,0);
+  $('mine').innerHTML=stores.map(s=>{
+    const mine=(scans||[]).filter(x=>x.store_id===s.id), tv=(visits||[]).filter(x=>x.store_id===s.id);
+    const scansToday=mine.filter(x=>new Date(x.created_at)>=today).length;
+    const cust={}; mine.forEach(x=>{cust[x.visitor_id]={name:x.visitors?.name,phone:x.visitors?.phone,first:x.created_at,visits:1};}); tv.forEach(x=>{ if(cust[x.visitor_id]) cust[x.visitor_id].visits++; });
+    const link=OTR.site+'?s='+s.id;
+    if(s.status!=='approved') return `<div class="card"><h2 style="font-size:24px">${esc(s.name)}</h2><div class="special" style="margin-top:12px"><strong>${s.status==='pending'?'Waiting for organizer approval.':'This store was not approved.'}</strong> ${s.status==='pending'?'Your QR poster and scans appear here the moment you are approved.':'Contact the organizer.'}</div></div>`;
+    return `<div class="card">
+      <h2 style="font-size:26px">${esc(s.name)}</h2>
+      <div class="row" style="justify-content:space-around;text-align:center;margin:16px 0">
+        <div><div class="big">${scansToday}</div><div style="font-weight:800">scans today</div></div>
+        <div><div class="big">${mine.length}</div><div style="font-weight:800">customers</div></div>
+        <div><div class="big">${mine.length+tv.length}</div><div style="font-weight:800">visits</div></div>
+      </div>
+      <label>Your festival special <small>(visitors see it on their next scan)</small></label>
+      <div class="row"><input id="sp-${s.id}" value="${esc(s.special||'')}" style="flex:1"><button class="btn small" data-save="${s.id}">Update</button></div>
+    </div>
+    <div class="card">
+      <div class="poster" id="poster-${s.id}"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div><h3>${esc(s.name)}</h3><div class="qr" id="qr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win · No purchase necessary</div></div>
+      <div class="row noprint" style="margin-top:12px"><button class="btn ghost small" onclick="window.print()">Print poster</button><span class="muted" style="font-size:14px;word-break:break-all">${esc(link)}</span></div>
+    </div>
+    <div class="card noprint">
+      <h3 style="font-size:20px">Who scanned you <span class="pill">live</span></h3>
+      <div class="scrollx"><table><thead><tr><th>When</th><th>Visitor</th></tr></thead><tbody>${mine.slice(0,40).map(x=>`<tr><td>${fmtDate(x.created_at)} ${fmtTime(x.created_at)}</td><td>${esc(x.visitors?.name||'Visitor')}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">No scans yet.</td></tr>'}</tbody></table></div>
+    </div>
+    <div class="card noprint">
+      <h3 style="font-size:20px">My customer list <span class="pill">${Object.keys(cust).length} people</span></h3>
+      <p class="muted" style="font-size:15px">Only visitors who opted in, and only your store's scans.</p>
+      <div class="scrollx"><table><thead><tr><th>Name</th><th>Phone</th><th>Visits</th></tr></thead><tbody>${Object.values(cust).map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${c.visits}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">Your list grows with every scan.</td></tr>'}</tbody></table></div>
+      <div style="margin-top:12px"><button class="btn ghost small" data-csv="${s.id}">Download my list (CSV)</button></div>
+    </div>`;
+  }).join('');
+  stores.forEach(s=>{ if(s.status==='approved') qrInto($('qr-'+s.id),OTR.site+'?s='+s.id); });
+  document.querySelectorAll('[data-save]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.save; const {error}=await sb.from('stores').update({special:$('sp-'+id).value.trim()}).eq('id',id); if(error) toast(error.message,true); else toast('Special updated'); }));
+  document.querySelectorAll('[data-csv]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.csv; const rows=[['Name','Phone','First visit','Visits']]; (scans||[]).filter(x=>x.store_id===id).forEach(x=>rows.push([x.visitors?.name,x.visitors?.phone,new Date(x.created_at).toLocaleString(),1+(visits||[]).filter(v=>v.store_id===id&&v.visitor_id===x.visitor_id).length])); download('my-customers.csv',csv(rows)); }));
+}
+</script>
+</body>
+</html>
