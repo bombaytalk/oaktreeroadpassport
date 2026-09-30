@@ -21,7 +21,7 @@
 <main class="wrap">
 
   <section id="landing" class="card hidden">
-    <div class="muted" style="font-size:15px">You're at</div>
+    <img id="landing-logo" class="hidden" alt="" style="width:64px;height:64px;object-fit:contain;float:right;margin-left:12px"><div class="muted" style="font-size:15px">You're at</div>
     <h2 id="landing-store" style="font-size:30px;color:var(--plum)"></h2>
     <div id="landing-special" class="special hidden"></div>
   </section>
@@ -77,7 +77,7 @@ let pendingStore=null;
 
 async function boot(){
   if(storeId){
-    try{ const s=await rpc('store_public',{p_store:storeId}); if(s){ $('landing').classList.remove('hidden'); $('landing-store').textContent=s.name; if(s.special){ $('landing-special').textContent='Festival special: '+s.special; $('landing-special').classList.remove('hidden'); } } }catch(e){}
+    try{ const s=await rpc('store_public',{p_store:storeId}); if(s){ $('landing').classList.remove('hidden'); $('landing-store').textContent=s.name; if(s.logo_url){ $('landing-logo').src=s.logo_url; $('landing-logo').classList.remove('hidden'); } if(s.special){ $('landing-special').textContent='Festival special: '+s.special; $('landing-special').classList.remove('hidden'); } } }catch(e){}
   }
   if(!token){ if(storeId){ pendingStore=storeId; $('signup').classList.remove('hidden'); } else $('noaccess').classList.remove('hidden'); return; }
   if(storeId) await scan(storeId); else await render();
@@ -107,7 +107,7 @@ async function render(highlight){
   if(p.tagline) $('tagline').textContent=p.tagline+' · Scan · Stamp · Win';
   $('v-hello').textContent=p.name.split(' ')[0]; $('v-entries').textContent=p.entries;
   const done=p.stores.filter(s=>s.stamped); $('v-count').textContent=done.length; $('v-total').textContent='of '+p.stores.length+' stores';
-  $('v-stamps').innerHTML=p.stores.map(s=>`<div class="stamp ${s.stamped?'done':''} ${s.id===highlight?'stamp-anim':''}">${s.stamped?'<div class="mark">✦</div>':''}<div>${esc(s.name)}</div></div>`).join('');
+  $('v-stamps').innerHTML=p.stores.map(s=>`<div class="stamp ${s.stamped?'done':''} ${s.id===highlight?'stamp-anim':''}" style="${s.stamped&&s.brand_color?'border-color:'+esc(s.brand_color):''}">${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:44px;height:44px;object-fit:contain;${s.stamped?'':'opacity:.35;filter:grayscale(1)'}">`:(s.stamped?'<div class="mark">✦</div>':'')}<div>${esc(s.name)}</div></div>`).join('');
   const last = highlight ? p.stores.find(s=>s.id===highlight) : null;
   $('v-last').classList.toggle('hidden',!last);
   if(last){ $('v-last-title').textContent=last.name+(last.special?' — festival special':''); $('v-last-body').innerHTML=(last.special?`<div class="special">${esc(last.special)}</div>`:'')+`<div class="muted" style="font-size:15px">${[last.address,last.website].filter(Boolean).map(esc).join(' · ')}</div>`; }
