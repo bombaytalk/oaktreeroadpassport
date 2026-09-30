@@ -123,7 +123,7 @@ async function renderMine(){
       <div style="margin-top:12px"><button class="btn ghost small" data-csv="${s.id}">Download my list (CSV)</button></div>
     </div>`;
   }).join('');
-  stores.forEach(s=>{ if(s.status==='approved') qrInto($('qr-'+s.id),OTR.site+'?s='+s.id); });
+  stores.forEach(s=>{ if(s.status==='approved') qrInto($('qr-'+s.id),OTR.site+'?s='+s.id,s.logo_url); });
   document.querySelectorAll('[data-save]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.save; const {error}=await sb.from('stores').update({special:$('sp-'+id).value.trim()}).eq('id',id); if(error) toast(error.message,true); else toast('Special updated'); }));
   document.querySelectorAll('[data-csv]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.csv; const rows=[['Name','Phone','First visit','Visits']]; (scans||[]).filter(x=>x.store_id===id).forEach(x=>rows.push([x.visitors?.name,x.visitors?.phone,new Date(x.created_at).toLocaleString(),1+(visits||[]).filter(v=>v.store_id===id&&v.visitor_id===x.visitor_id).length])); download('my-customers.csv',csv(rows)); }));
 }
