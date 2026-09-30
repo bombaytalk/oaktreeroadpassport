@@ -37,6 +37,8 @@
       <label>Person of contact</label><input id="a-contact">
       <label>Address on Oak Tree Road</label><div class="ac"><input id="a-address" autocomplete="off" placeholder="Start typing the street number and name"><div class="ac-list hidden" id="a-address-list"></div></div>
       <label>Website or Instagram</label><input id="a-web">
+      <label>Logo <small>(optional — becomes your stamp in the passport)</small></label>
+      <div class="row"><input id="a-logo" type="file" accept="image/*" style="flex:1"><div id="a-logo-prev" class="hidden" style="width:64px;height:64px;border-radius:16px;border:3px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden"><img id="a-logo-img" style="width:52px;height:52px;object-fit:contain"></div></div>
       <label>Festival special <small>(what visitors see when they scan you)</small></label><textarea id="a-special" rows="2" placeholder="e.g. Free chai with any snack, Oct 15–16"></textarea>
       <div style="margin-top:18px"><button class="btn" id="a-submit">Submit my store</button></div>
       <p class="err" id="a-err"></p>
@@ -55,10 +57,12 @@
 
 <script src="shared.js"></script>
 <script>
+let logoData=null;
+$('a-logo').addEventListener('change', async e=>{ const f=e.target.files[0]; if(!f) return; try{ logoData=await processLogo(f); $('a-logo-img').src=logoData.preview; $('a-logo-prev').style.borderColor=logoData.color; $('a-logo-prev').classList.remove('hidden'); }catch(err){ toast('Could not read that image',true); logoData=null; } });
 $('a-submit').addEventListener('click', async ()=>{
   $('a-err').textContent='';
   const p={name:$('a-name').value.trim(),category:$('a-cat').value,email:$('a-email').value.trim().toLowerCase(),phone:$('a-phone').value.trim(),contact:$('a-contact').value.trim(),address:$('a-address').value.trim(),website:$('a-web').value.trim(),special:$('a-special').value.trim()};
-  try{ $('a-submit').disabled=true; await rpc('store_apply',{p_org_slug:OTR.org,p:p}); $('a-done').classList.remove('hidden'); $('a-submit').classList.add('hidden'); toast('Submitted for approval'); }
+  try{ $('a-submit').disabled=true; if(logoData){ p.logo_url=await uploadLogo(logoData.blob); p.brand_color=logoData.color; } await rpc('store_apply',{p_org_slug:OTR.org,p:p}); $('a-done').classList.remove('hidden'); $('a-submit').classList.add('hidden'); toast('Submitted for approval'); }
   catch(e){ $('a-err').textContent=e.message.replace(/^.*?: /,''); } finally{ $('a-submit').disabled=false; }
 });
 $('signout').addEventListener('click',signOut);
@@ -105,7 +109,7 @@ async function renderMine(){
       <div class="row"><input id="sp-${s.id}" value="${esc(s.special||'')}" style="flex:1"><button class="btn small" data-save="${s.id}">Update</button></div>
     </div>
     <div class="card">
-      <div class="poster" id="poster-${s.id}"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div><h3>${esc(s.name)}</h3><div class="qr" id="qr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win · No purchase necessary</div></div>
+      <div class="poster" id="poster-${s.id}"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div>${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:72px;height:72px;object-fit:contain;margin:8px auto 0;display:block">`:''}<h3>${esc(s.name)}</h3><div class="qr" id="qr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win · No purchase necessary</div></div>
       <div class="row noprint" style="margin-top:12px"><button class="btn ghost small" onclick="window.print()">Print poster</button><span class="muted" style="font-size:14px;word-break:break-all">${esc(link)}</span></div>
     </div>
     <div class="card noprint">
