@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="OTR Passport">
+<title>Oak Tree Road Passport</title>
+<link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<header class="top">
+  <h1>Oak Tree Road <span>Passport</span></h1>
+  <p id="tagline">Every scan is a chance. Scan · Stamp · Win</p>
+</header>
+<main class="wrap">
+
+  <section id="landing" class="card hidden">
+    <div class="muted" style="font-size:15px">You're at</div>
+    <h2 id="landing-store" style="font-size:30px;color:var(--plum)"></h2>
+    <div id="landing-special" class="special hidden"></div>
+  </section>
+
+  <section id="signup" class="card hidden">
+    <h2 style="font-size:26px">Enter this once</h2>
+    <p class="muted" style="margin:6px 0 0">After that, every scan is one tap.</p>
+    <label>Your name</label><input id="v-name" autocomplete="name" placeholder="First and last name">
+    <label>Mobile number <small>(so we can reach you if you win)</small></label><input id="v-phone" inputmode="tel" autocomplete="tel" placeholder="(732) 555-0100">
+    <label style="display:flex;gap:10px;align-items:flex-start;font-weight:600;font-size:16px;margin-top:16px"><input type="checkbox" id="v-optin" checked style="width:auto;margin-top:5px"><span>Enter me in the raffle and send me Oak Tree Road specials. No purchase necessary.</span></label>
+    <div style="margin-top:18px"><button class="btn" id="v-join">Start collecting stamps</button></div>
+    <p class="err" id="v-err"></p>
+  </section>
+
+  <section id="passport" class="hidden">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div><div class="muted" style="font-size:15px">Hi, <strong id="v-hello"></strong></div><div class="big" id="v-entries">0</div><div style="font-weight:800;margin-top:-2px">raffle entries</div></div>
+        <div style="text-align:right"><div class="muted" style="font-size:15px">stamps</div><div class="big" id="v-count">0</div><div class="muted" style="font-size:15px" id="v-total"></div></div>
+      </div>
+      <div class="stamps" id="v-stamps"></div>
+      <p class="muted" style="font-size:15px;margin:6px 0 0">One stamp per store. Each new store you scan is one more entry.</p>
+    </div>
+
+    <div class="card hidden" id="v-last">
+      <h3 style="font-size:20px;color:var(--plum)" id="v-last-title"></h3>
+      <div id="v-last-body"></div>
+    </div>
+
+    <div class="card" id="v-prizes-card">
+      <h3 style="font-size:22px">What you can win</h3>
+      <div id="v-prizes"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:22px">Specials on Oak Tree Road</h3>
+      <div id="v-specials"></div>
+    </div>
+    <p class="muted" style="font-size:14px;text-align:center">Winners announced each night after Aarti. <a href="#" id="v-reset" style="color:var(--muted)">Not you? Start over</a></p>
+  </section>
+
+  <section id="noaccess" class="card hidden"><h2 style="font-size:24px">Scan a store's QR code to begin</h2><p class="muted">Look for the Oak Tree Road Passport poster at any participating store's counter.</p></section>
+</main>
+<footer>Oak Tree Road Business Association · Proud to support Woodbridge Township's Buy Local program<br><a href="https://dotcodenetworks.com" target="_blank" rel="noopener">Powered by DotCode Networks</a></footer>
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+const TOK='otr-visitor-token';
+let token=null; try{ token=localStorage.getItem(TOK); }catch(e){}
+const storeId=param('s');
+let pendingStore=null;
+
+async function boot(){
+  if(storeId){
+    try{ const s=await rpc('store_public',{p_store:storeId}); if(s){ $('landing').classList.remove('hidden'); $('landing-store').textContent=s.name; if(s.special){ $('landing-special').textContent='Festival special: '+s.special; $('landing-special').classList.remove('hidden'); } } }catch(e){}
+  }
+  if(!token){ if(storeId){ pendingStore=storeId; $('signup').classList.remove('hidden'); } else $('noaccess').classList.remove('hidden'); return; }
+  if(storeId) await scan(storeId); else await render();
+}
+$('v-join').addEventListener('click', async ()=>{
+  $('v-err').textContent='';
+  try{ $('v-join').disabled=true;
+    const r=await rpc('visitor_register',{p_org_slug:OTR.org,p_name:$('v-name').value,p_phone:$('v-phone').value,p_opt_in:$('v-optin').checked});
+    token=r.token; try{localStorage.setItem(TOK,token);}catch(e){}
+    $('signup').classList.add('hidden');
+    if(pendingStore) await scan(pendingStore); else await render();
+  }catch(e){ $('v-err').textContent=e.message.replace(/^.*?: /,''); } finally{ $('v-join').disabled=false; }
+});
+$('v-reset').addEventListener('click',e=>{ e.preventDefault(); if(confirm('Start over as a new visitor on this phone?')){ try{localStorage.removeItem(TOK);}catch(e){} location.href=location.pathname; }});
+
+async function scan(id){
+  try{
+    const r=await rpc('visitor_scan',{p_token:token,p_store:id});
+    await render(r.ok? r.store.id : null);
+    if(!r.ok) toast(r.reason,true); else if(r.new) toast('Stamp collected at '+r.store.name+' — +1 entry'); else toast('Welcome back to '+r.store.name+'. Stamp already collected.');
+    history.replaceState(null,'',location.pathname);
+  }catch(e){ if(/unknown visitor/.test(e.message)){ try{localStorage.removeItem(TOK);}catch(_){} token=null; pendingStore=id; $('signup').classList.remove('hidden'); } else { toast(e.message,true); await render(); } }
+}
+async function render(highlight){
+  const p=await rpc('visitor_passport',{p_token:token});
+  $('landing').classList.add('hidden'); $('passport').classList.remove('hidden');
+  if(p.tagline) $('tagline').textContent=p.tagline+' · Scan · Stamp · Win';
+  $('v-hello').textContent=p.name.split(' ')[0]; $('v-entries').textContent=p.entries;
+  const done=p.stores.filter(s=>s.stamped); $('v-count').textContent=done.length; $('v-total').textContent='of '+p.stores.length+' stores';
+  $('v-stamps').innerHTML=p.stores.map(s=>`<div class="stamp ${s.stamped?'done':''} ${s.id===highlight?'stamp-anim':''}">${s.stamped?'<div class="mark">✦</div>':''}<div>${esc(s.name)}</div></div>`).join('');
+  const last = highlight ? p.stores.find(s=>s.id===highlight) : null;
+  $('v-last').classList.toggle('hidden',!last);
+  if(last){ $('v-last-title').textContent=last.name+(last.special?' — festival special':''); $('v-last-body').innerHTML=(last.special?`<div class="special">${esc(last.special)}</div>`:'')+`<div class="muted" style="font-size:15px">${[last.address,last.website].filter(Boolean).map(esc).join(' · ')}</div>`; }
+  const prizes=Array.isArray(p.prizes)?p.prizes:[];
+  $('v-prizes-card').classList.toggle('hidden',!prizes.length);
+  $('v-prizes').innerHTML=prizes.map(z=>`<div class="special"><div class="muted" style="font-size:14px;font-weight:800">${esc(z.label)}</div><div style="font-weight:800">${esc(z.title)}</div><div class="muted" style="font-size:15px">${esc(z.note||'')}</div></div>`).join('');
+  $('v-specials').innerHTML=p.stores.filter(s=>s.special).map(s=>`<div class="special"><strong>${esc(s.name)}</strong> · ${esc(s.special)}</div>`).join('')||'<p class="muted">Specials appear here as stores post them.</p>';
+}
+boot().catch(e=>{ toast(e.message,true); });
+</script>
+</body>
+</html>
