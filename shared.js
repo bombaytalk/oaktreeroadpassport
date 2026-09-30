@@ -19,7 +19,13 @@ function wireSignIn(onSignedIn){
   currentUser().then(start);
 }
 async function signOut(){ await sb.auth.signOut(); location.reload(); }
-function qrInto(el, text){ el.innerHTML=''; new QRCode(el,{text,width:200,height:200,colorDark:'#1E1B22',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }
+function qrInto(el, text, logoUrl){ el.innerHTML=''; new QRCode(el,{text,width:220,height:220,colorDark:'#1E1B22',colorLight:'#ffffff',correctLevel:logoUrl?QRCode.CorrectLevel.H:QRCode.CorrectLevel.M});
+  if(!logoUrl) return;
+  const cv=el.querySelector('canvas'), im=el.querySelector('img'); if(!cv) return;
+  const lg=new Image(); lg.crossOrigin='anonymous';
+  lg.onload=()=>{ const x=cv.getContext('2d'); const S=cv.width, t=Math.round(S*0.26), p=Math.round(t*0.12), r=Math.round(t*0.18), o=(S-t)/2;
+    x.fillStyle='#fff'; x.beginPath(); x.roundRect(o,o,t,t,r); x.fill(); x.drawImage(lg,o+p,o+p,t-2*p,t-2*p); if(im) im.src=cv.toDataURL('image/png'); };
+  lg.src=logoUrl; }
 function csv(rows){ return rows.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\n'); }
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'})); a.download=name; a.click(); }
 
