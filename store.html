@@ -35,7 +35,7 @@
       <label>Email <small>(this becomes your sign-in)</small></label><input id="a-email" inputmode="email" placeholder="you@yourstore.com">
       <label>Phone <small>(email or phone required)</small></label><input id="a-phone" inputmode="tel">
       <label>Person of contact</label><input id="a-contact">
-      <label>Address on Oak Tree Road</label><input id="a-address">
+      <label>Address on Oak Tree Road</label><div class="ac"><input id="a-address" autocomplete="off" placeholder="Start typing the street number and name"><div class="ac-list hidden" id="a-address-list"></div></div>
       <label>Website or Instagram</label><input id="a-web">
       <label>Festival special <small>(what visitors see when they scan you)</small></label><textarea id="a-special" rows="2" placeholder="e.g. Free chai with any snack, Oct 15–16"></textarea>
       <div style="margin-top:18px"><button class="btn" id="a-submit">Submit my store</button></div>
@@ -62,6 +62,18 @@ $('a-submit').addEventListener('click', async ()=>{
   catch(e){ $('a-err').textContent=e.message.replace(/^.*?: /,''); } finally{ $('a-submit').disabled=false; }
 });
 $('signout').addEventListener('click',signOut);
+
+// address suggestions (OpenStreetMap via Photon, biased to Iselin NJ) — no key needed
+(function(){ const inp=$('a-address'), list=$('a-address-list'); let t=null, last='';
+  inp.addEventListener('input',()=>{ clearTimeout(t); const q=inp.value.trim(); if(q.length<3){ list.classList.add('hidden'); return; } t=setTimeout(()=>lookup(q),250); });
+  inp.addEventListener('blur',()=>setTimeout(()=>list.classList.add('hidden'),150));
+  async function lookup(q){ if(q===last) return; last=q;
+    try{ const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lat=40.575&lon=-74.322&limit=6&lang=en'); const j=await r.json();
+      const items=(j.features||[]).map(f=>{const p=f.properties; return [p.housenumber,p.street].filter(Boolean).join(' ')+(p.city?', '+p.city:'')+(p.state?', '+p.state:'')+(p.postcode?' '+p.postcode:'');}).filter((v,i,a)=>v.trim()&&a.indexOf(v)===i);
+      list.innerHTML=items.map(s=>`<div>${esc(s)}</div>`).join(''); list.classList.toggle('hidden',!items.length);
+      list.querySelectorAll('div').forEach(d=>d.addEventListener('mousedown',()=>{ inp.value=d.textContent; list.classList.add('hidden'); }));
+    }catch(e){ list.classList.add('hidden'); } }
+})();
 
 wireSignIn(async user=>{
   $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
