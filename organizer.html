@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="OTR Organizer">
+<title>Oak Tree Road Passport — Organizer</title>
+<link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<style>.tabs{display:flex;gap:6px;margin:0 0 16px;overflow-x:auto}.tabs button{flex:1;border:2px solid var(--line);background:var(--card);color:var(--text);padding:12px 8px;font:inherit;font-weight:800;font-size:16px;border-radius:12px;white-space:nowrap}.tabs button[aria-selected=true]{background:var(--plum);color:#fff;border-color:var(--plum)}.leader li{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}.leader{list-style:none;padding:0;margin:0}</style>
+</head>
+<body>
+<header class="top"><h1>Oak Tree Road <span>Passport</span></h1><p>Organizer</p></header>
+<main class="wrap">
+  <section id="out" class="card">
+    <h2 style="font-size:24px">Organizer sign-in</h2>
+    <label>Email</label><input id="si-email" inputmode="email" autocomplete="email">
+    <div style="margin-top:12px"><button class="btn" id="si-send">Send me a code</button></div>
+    <div id="si-step2" class="hidden"><label>Enter the code</label><input id="si-code" inputmode="numeric" autocomplete="one-time-code"><div style="margin-top:12px"><button class="btn" id="si-verify">Sign in</button></div></div>
+  </section>
+
+  <section id="in" class="hidden">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="muted" id="who"></span><button class="btn ghost small" id="signout">Sign out</button></div>
+    <div class="tabs" role="tablist">
+      <button data-tab="home" aria-selected="true">Live</button><button data-tab="approvals">Approvals <span id="pend-badge" class="pill hidden">0</span></button><button data-tab="stores">Stores</button><button data-tab="draw">Draw</button><button data-tab="team">Team</button>
+    </div>
+
+    <div id="tab-home">
+      <div class="card"><div class="row" style="justify-content:space-around;text-align:center">
+        <div><div class="big" id="o-stores">0</div><div style="font-weight:800">stores</div></div>
+        <div><div class="big" id="o-visitors">0</div><div style="font-weight:800">visitors</div></div>
+        <div><div class="big" id="o-scans">0</div><div style="font-weight:800">scans</div></div>
+        <div><div class="big" id="o-today">0</div><div style="font-weight:800">today</div></div>
+      </div></div>
+      <div class="card"><h3 style="font-size:22px">Store leaderboard</h3><ol class="leader" id="o-leader"></ol></div>
+      <div class="card"><h3 style="font-size:22px">Latest scans <span class="pill">live</span></h3><div class="scrollx"><table><thead><tr><th>When</th><th>Visitor</th><th>Store</th></tr></thead><tbody id="o-latest"></tbody></table></div></div>
+      <div class="card"><h3 style="font-size:22px">Links</h3>
+        <p style="margin:6px 0"><strong>Store sign-up & sign-in:</strong><br><code id="lnk-store" style="font-size:15px;word-break:break-all"></code></p>
+        <p style="margin:6px 0"><strong>This organizer page:</strong><br><code id="lnk-org" style="font-size:15px;word-break:break-all"></code></p>
+        <div class="row" style="margin-top:10px"><button class="btn ghost small" id="o-export">Export visitors (CSV)</button><button class="btn ghost small" id="o-export-scans">Export scans (CSV)</button></div>
+      </div>
+    </div>
+
+    <div id="tab-approvals" class="hidden">
+      <div class="card"><h3 style="font-size:22px">Pending approvals</h3><p class="muted" style="font-size:15px">Nothing is live until you approve it.</p><div id="o-pending"></div></div>
+    </div>
+
+    <div id="tab-stores" class="hidden"><div id="o-stores-list"></div></div>
+
+    <div id="tab-draw" class="hidden">
+      <div class="card"><h3 style="font-size:22px">Draw a winner</h3><p class="muted" style="font-size:15px">Every scan is one ticket. Opted-in visitors only. A visitor can win once per campaign.</p>
+        <label>Prize</label><input id="d-prize" placeholder="e.g. Thursday $100 gift card #1">
+        <div style="margin-top:12px"><button class="btn" id="d-go">Draw</button></div><div id="d-result" style="margin-top:14px"></div>
+        <h3 style="font-size:18px;margin-top:18px">Winners so far</h3><div class="scrollx"><table><thead><tr><th>When</th><th>Prize</th><th>Winner</th><th>Phone</th></tr></thead><tbody id="d-list"></tbody></table></div>
+      </div>
+      <div class="card"><h3 style="font-size:22px">Prizes shown to visitors</h3><p class="muted" style="font-size:15px">One per line as: Label | Title | Note</p><textarea id="p-text" rows="5"></textarea><div style="margin-top:10px"><button class="btn small" id="p-save">Save prizes</button></div></div>
+    </div>
+
+    <div id="tab-team" class="hidden">
+      <div class="card"><h3 style="font-size:22px">Team</h3><p class="muted" style="font-size:15px">Co-organizers can do everything you can. Helpers can approve stores and see live numbers only.</p>
+        <div class="scrollx"><table><thead><tr><th>Email</th><th>Role</th><th></th></tr></thead><tbody id="t-list"></tbody></table></div>
+        <label>Add a person by email</label><input id="t-email" inputmode="email">
+        <label>Role</label><select id="t-role"><option value="coorganizer">Co-organizer</option><option value="helper">Helper</option></select>
+        <div style="margin-top:12px"><button class="btn small" id="t-add">Add to team</button></div>
+      </div>
+      <div class="card"><h3 style="font-size:22px">Activity log</h3><div class="scrollx"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody id="a-list"></tbody></table></div></div>
+    </div>
+  </section>
+</main>
+<footer>Oak Tree Road Business Association · <a href="https://dotcodenetworks.com" target="_blank" rel="noopener">Powered by DotCode Networks</a></footer>
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+let ORG=null, ROLE=null;
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{ document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b)); ['home','approvals','stores','draw','team'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==b.dataset.tab)); }));
+$('signout').addEventListener('click',signOut);
+
+wireSignIn(async user=>{
+  const {data:orgs}=await sb.from('orgs').select('*').eq('slug',OTR.org);
+  if(!orgs||!orgs.length){ $('out').innerHTML='<h2 style="font-size:22px">This email is not on the organizer team.</h2><p class="muted">Ask the owner to add you under Team.</p><button class="btn ghost small" onclick="signOut()">Sign out</button>'; return; }
+  ORG=orgs[0]; $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
+  $('lnk-store').textContent=OTR.site+'store.html'; $('lnk-org').textContent=OTR.site+'organizer.html';
+  await refresh();
+  sb.channel('org-live').on('postgres_changes',{event:'*',schema:'public',table:'scans'},()=>refresh()).on('postgres_changes',{event:'*',schema:'public',table:'stores'},()=>refresh()).subscribe();
+});
+
+async function refresh(){
+  try{
+    const o=await rpc('org_overview',{p_org:ORG.id}); ROLE=o.role;
+    $('o-stores').textContent=o.stores; $('o-visitors').textContent=o.visitors; $('o-scans').textContent=o.scans; $('o-today').textContent=o.scans_today;
+    $('o-leader').innerHTML=(o.leaderboard||[]).map((l,i)=>`<li><span>${i+1}. ${esc(l.name)}</span><strong>${l.scans}</strong></li>`).join('')||'<li class="muted">No approved stores yet.</li>';
+    $('pend-badge').textContent=o.pending; $('pend-badge').classList.toggle('hidden',!o.pending);
+    const isMgr = ROLE==='owner'||ROLE==='coorganizer';
+    ['tab-draw','tab-team'].forEach(id=>$(id).style.display=isMgr?'':'none'); document.querySelector('[data-tab=draw]').style.display=isMgr?'':'none'; document.querySelector('[data-tab=team]').style.display=isMgr?'':'none';
+
+    const {data:latest}=await sb.from('scans').select('created_at,visitors(name),stores(name)').order('created_at',{ascending:false}).limit(25);
+    $('o-latest').innerHTML=(latest||[]).map(x=>`<tr><td>${fmtDate(x.created_at)} ${fmtTime(x.created_at)}</td><td>${esc(x.visitors?.name)}</td><td>${esc(x.stores?.name)}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No scans yet.</td></tr>';
+
+    const {data:stores}=await sb.from('stores').select('*').order('submitted_at',{ascending:false});
+    const pend=(stores||[]).filter(s=>s.status==='pending');
+    $('o-pending').innerHTML=pend.map(s=>`<div style="border:2px solid var(--line);border-radius:14px;padding:14px;margin:10px 0"><div style="font-weight:800;font-size:20px">${esc(s.name)} ${s.category?`<span class="pill">${esc(s.category)}</span>`:''}</div><div class="muted" style="font-size:16px">${[s.contact,s.phone,s.email,s.address,s.website].filter(Boolean).map(esc).join(' · ')}</div>${s.special?`<div class="muted" style="font-size:16px">Special: ${esc(s.special)}</div>`:''}<div class="muted" style="font-size:14px">Sign-in email: ${esc(s.owner_email||'none — add one before approving')}</div><div class="row" style="margin-top:10px"><button class="btn small" data-status="approved" data-id="${s.id}">Approve</button><button class="btn ghost small" data-status="rejected" data-id="${s.id}">Reject</button></div></div>`).join('')||'<p class="muted">Nothing waiting.</p>';
+
+    $('o-stores-list').innerHTML=(stores||[]).filter(s=>s.status!=='pending').map(s=>`<div class="card"><div class="row" style="justify-content:space-between"><h3 style="font-size:22px">${esc(s.name)}</h3><span class="pill">${esc(s.status)}</span></div><div class="muted" style="font-size:15px">${[s.category,s.contact,s.phone,s.email,s.address].filter(Boolean).map(esc).join(' · ')}</div>
+      <label>Sign-in email for this store</label><div class="row"><input id="oe-${s.id}" value="${esc(s.owner_email||'')}" style="flex:1"><button class="btn small" data-owner="${s.id}">Save</button></div>
+      ${s.status==='approved'?`<details style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">QR poster</summary><div class="poster" style="margin-top:12px"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div><h3>${esc(s.name)}</h3><div class="qr" id="oqr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win · No purchase necessary</div></div></details>`:''}
+      <div class="row" style="margin-top:10px">${s.status==='approved'?`<button class="btn ghost small" data-status="rejected" data-id="${s.id}">Remove from passport</button>`:`<button class="btn small" data-status="approved" data-id="${s.id}">Approve</button>`}</div></div>`).join('')||'<div class="card"><p class="muted">No stores yet. Share the store link.</p></div>';
+    (stores||[]).filter(s=>s.status==='approved').forEach(s=>{ const el=$('oqr-'+s.id); if(el) qrInto(el,OTR.site+'?s='+s.id); });
+    document.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('store_set_status',{p_store:b.dataset.id,p_status:b.dataset.status}); toast(b.dataset.status==='approved'?'Approved':'Removed'); refresh(); }catch(e){ toast(e.message,true); } }));
+    document.querySelectorAll('[data-owner]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.owner; const {error}=await sb.from('stores').update({owner_email:$('oe-'+id).value.trim().toLowerCase()||null}).eq('id',id); if(error) toast(error.message,true); else toast('Sign-in email saved'); }));
+
+    if(isMgr){
+      const {data:draws}=await sb.from('draws').select('created_at,prize,visitors(name,phone)').order('created_at',{ascending:false});
+      $('d-list').innerHTML=(draws||[]).map(d=>`<tr><td>${fmtDate(d.created_at)} ${fmtTime(d.created_at)}</td><td>${esc(d.prize)}</td><td>${esc(d.visitors?.name)}</td><td>${esc(d.visitors?.phone)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No draws yet.</td></tr>';
+      const {data:camp}=await sb.from('campaigns').select('*').eq('org_id',ORG.id).eq('active',true).limit(1); window.CAMP=camp?.[0];
+      if(CAMP && !$('p-text').value) $('p-text').value=(CAMP.prizes||[]).map(p=>[p.label,p.title,p.note].join(' | ')).join('\n');
+      const {data:team}=await sb.from('team_members').select('*').order('created_at');
+      $('t-list').innerHTML=(team||[]).map(t=>`<tr><td>${esc(t.email)}</td><td>${esc(t.role)}</td><td>${t.role==='owner'?'':`<button class="btn ghost small" data-remove="${t.id}">Remove</button>`}</td></tr>`).join('');
+      document.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',async()=>{ if(!confirm('Remove this person from the team?')) return; const {error}=await sb.from('team_members').delete().eq('id',b.dataset.remove); if(error) toast(error.message,true); else { toast('Removed'); refresh(); } }));
+      const {data:audit}=await sb.from('audit_log').select('*').order('created_at',{ascending:false}).limit(50);
+      $('a-list').innerHTML=(audit||[]).map(a=>`<tr><td>${fmtDate(a.created_at)} ${fmtTime(a.created_at)}</td><td>${esc(a.actor||'—')}</td><td>${esc(a.action)} ${a.details?.name?'· '+esc(a.details.name):''}</td></tr>`).join('');
+    }
+  }catch(e){ toast(e.message,true); }
+}
+$('d-go').addEventListener('click',async()=>{ try{ const r=await rpc('draw_winner',{p_org:ORG.id,p_prize:$('d-prize').value.trim()||'Prize'}); if(!r.ok){ $('d-result').innerHTML=`<p class="muted">${esc(r.reason)}</p>`; return; } $('d-result').innerHTML=`<div class="special" style="font-size:22px"><strong>${esc(r.name)}</strong> — ${esc(r.phone)}<br><span class="muted" style="font-size:16px">${r.tickets} of ${r.total_tickets} tickets (${Math.round(100*r.tickets/r.total_tickets)}% chance)</span></div>`; refresh(); }catch(e){ toast(e.message,true); } });
+$('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({label:a[0],title:a[1]||'',note:a[2]||''})); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else toast('Prizes saved'); });
+$('t-add').addEventListener('click',async()=>{ const email=$('t-email').value.trim().toLowerCase(); if(!email) return; const {error}=await sb.from('team_members').insert({org_id:ORG.id,email,role:$('t-role').value,added_by:$('who').textContent}); if(error) toast(error.message,true); else { $('t-email').value=''; toast('Added'); refresh(); } });
+$('o-export').addEventListener('click',async()=>{ const {data:v}=await sb.from('visitors').select('name,phone,opt_in,created_at'); const {data:sc}=await sb.from('scans').select('visitor_id'); const cnt={}; (sc||[]).forEach(x=>cnt[x.visitor_id]=(cnt[x.visitor_id]||0)+1); const {data:vv}=await sb.from('visitors').select('id,name,phone,opt_in,created_at'); download('visitors.csv',csv([['Name','Phone','Opted in','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone,x.opt_in?'yes':'no',new Date(x.created_at).toLocaleString(),cnt[x.id]||0])])); });
+$('o-export-scans').addEventListener('click',async()=>{ const {data}=await sb.from('scans').select('created_at,visitors(name,phone),stores(name)').order('created_at'); download('scans.csv',csv([['When','Visitor','Phone','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitors?.name,x.visitors?.phone,x.stores?.name])])); });
+</script>
+</body>
+</html>
