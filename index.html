@@ -28,7 +28,7 @@
 
   <section id="signup" class="card hidden">
     <h2 style="font-size:26px">Enter this once</h2>
-    <p class="muted" style="margin:6px 0 0">After that, every scan is one tap.</p>
+    <p class="muted" style="margin:6px 0 0">After that, every scan is one tap. Your phone will ask for location — stamps only count at the store.</p>
     <label>Your name</label><input id="v-name" autocomplete="name" placeholder="First and last name">
     <label>Mobile number <small>(so we can reach you if you win)</small></label><input id="v-phone" inputmode="tel" autocomplete="tel" placeholder="(732) 555-0100">
     <label style="display:flex;gap:10px;align-items:flex-start;font-weight:600;font-size:16px;margin-top:16px"><input type="checkbox" id="v-optin" checked style="width:auto;margin-top:5px"><span>Enter me in the raffle and send me Oak Tree Road specials. No purchase necessary.</span></label>
@@ -44,6 +44,7 @@
       </div>
       <div class="stamps" id="v-stamps"></div>
       <p class="muted" style="font-size:15px;margin:6px 0 0">One stamp per store. Each new store you scan is one more entry.</p>
+      <div id="loc-help" class="special hidden"><strong>Location is required.</strong> Stamps only count when you are at the store. Allow location for this site in your phone settings, then scan the poster again.</div>
     </div>
 
     <div class="card hidden" id="v-last">
@@ -71,6 +72,8 @@
 <script src="shared.js"></script>
 <script>
 const TOK='otr-visitor-token';
+const DEV=(()=>{ try{ let d=localStorage.getItem('otr-device'); if(!d){ d=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('otr-device',d);} return d; }catch(e){ return null; } })();
+function getLocation(){ return new Promise(res=>{ if(!navigator.geolocation) return res(null); navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy}), ()=>res(null), {enableHighAccuracy:true, timeout:12000, maximumAge:0}); }); }
 let token=null; try{ token=localStorage.getItem(TOK); }catch(e){}
 const storeId=param('s');
 let pendingStore=null;
@@ -85,7 +88,7 @@ async function boot(){
 $('v-join').addEventListener('click', async ()=>{
   $('v-err').textContent='';
   try{ $('v-join').disabled=true;
-    const r=await rpc('visitor_register',{p_org_slug:OTR.org,p_name:$('v-name').value,p_phone:$('v-phone').value,p_opt_in:$('v-optin').checked});
+    const r=await rpc('visitor_register',{p_org_slug:OTR.org,p_name:$('v-name').value,p_phone:$('v-phone').value,p_opt_in:$('v-optin').checked,p_device:DEV});
     token=r.token; try{localStorage.setItem(TOK,token);}catch(e){}
     $('signup').classList.add('hidden');
     if(pendingStore) await scan(pendingStore); else await render();
@@ -95,9 +98,11 @@ $('v-reset').addEventListener('click',e=>{ e.preventDefault(); if(confirm('Start
 
 async function scan(id){
   try{
-    const r=await rpc('visitor_scan',{p_token:token,p_store:id});
+    toast('Checking you are at the store…');
+    const loc=await getLocation();
+    const r=await rpc('visitor_scan',{p_token:token,p_store:id,p_lat:loc?.lat??null,p_lon:loc?.lon??null,p_acc:loc?.acc??null});
     await render(r.ok? r.store.id : null);
-    if(!r.ok) toast(r.reason,true); else if(r.new) toast('Stamp collected at '+r.store.name+' — +1 entry'); else toast('Welcome back to '+r.store.name+'. Stamp already collected.');
+    if(!r.ok){ toast(r.reason,true); if(r.code==='no_location') $('loc-help').classList.remove('hidden'); } else if(r.new) toast('Stamp collected at '+r.store.name+' — +1 entry'); else toast('Welcome back to '+r.store.name+'. Stamp already collected.');
     history.replaceState(null,'',location.pathname);
   }catch(e){ if(/unknown visitor/.test(e.message)){ try{localStorage.removeItem(TOK);}catch(_){} token=null; pendingStore=id; $('signup').classList.remove('hidden'); } else { toast(e.message,true); await render(); } }
 }
