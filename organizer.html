@@ -58,7 +58,7 @@
       <div class="card"><h3 style="font-size:22px">Draw a winner</h3><p class="muted" style="font-size:15px">Every scan is one ticket. Opted-in visitors only. A visitor can win once per campaign.</p>
         <label>Prize</label><input id="d-prize" placeholder="e.g. Thursday $100 gift card #1">
         <div style="margin-top:12px"><button class="btn" id="d-go">Draw</button></div><div id="d-result" style="margin-top:14px"></div>
-        <h3 style="font-size:18px;margin-top:18px">Winners so far</h3><div class="scrollx"><table><thead><tr><th>When</th><th>Prize</th><th>Winner</th><th>Phone</th></tr></thead><tbody id="d-list"></tbody></table></div>
+        <h3 style="font-size:18px;margin-top:18px">Winners so far</h3><div class="scrollx"><table><thead><tr><th>When</th><th>Prize</th><th>Winner</th><th>Contact</th></tr></thead><tbody id="d-list"></tbody></table></div>
       </div>
       <div class="card"><h3 style="font-size:22px">Prizes shown to visitors</h3><p class="muted" style="font-size:15px">One per line as: Label | Title | Note</p><textarea id="p-text" rows="5"></textarea><div style="margin-top:10px"><button class="btn small" id="p-save">Save prizes</button></div></div>
     </div>
@@ -119,8 +119,8 @@ async function refresh(){
     document.querySelectorAll('[data-owner]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.owner; const {error}=await sb.from('stores').update({owner_email:$('oe-'+id).value.trim().toLowerCase()||null}).eq('id',id); if(error) toast(error.message,true); else toast('Sign-in email saved'); }));
 
     if(isMgr){
-      const {data:draws}=await sb.from('draws').select('created_at,prize,visitors(name,phone)').order('created_at',{ascending:false});
-      $('d-list').innerHTML=(draws||[]).map(d=>`<tr><td>${fmtDate(d.created_at)} ${fmtTime(d.created_at)}</td><td>${esc(d.prize)}</td><td>${esc(d.visitors?.name)}</td><td>${esc(d.visitors?.phone)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No draws yet.</td></tr>';
+      const {data:draws}=await sb.from('draws').select('created_at,prize,visitors(name,phone,email)').order('created_at',{ascending:false});
+      $('d-list').innerHTML=(draws||[]).map(d=>`<tr><td>${fmtDate(d.created_at)} ${fmtTime(d.created_at)}</td><td>${esc(d.prize)}</td><td>${esc(d.visitors?.name)}</td><td>${esc(d.visitors?.phone||d.visitors?.email||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No draws yet.</td></tr>';
       const {data:camp}=await sb.from('campaigns').select('*').eq('org_id',ORG.id).eq('active',true).limit(1); window.CAMP=camp?.[0];
       if(CAMP && !$('p-text').value) $('p-text').value=(CAMP.prizes||[]).map(p=>[p.label,p.title,p.note].join(' | ')).join('\n');
       const {data:team}=await sb.from('team_members').select('*').order('created_at');
@@ -134,8 +134,8 @@ async function refresh(){
 $('d-go').addEventListener('click',async()=>{ try{ const r=await rpc('draw_winner',{p_org:ORG.id,p_prize:$('d-prize').value.trim()||'Prize'}); if(!r.ok){ $('d-result').innerHTML=`<p class="muted">${esc(r.reason)}</p>`; return; } $('d-result').innerHTML=`<div class="special" style="font-size:22px"><strong>${esc(r.name)}</strong> — ${esc(r.phone)}<br><span class="muted" style="font-size:16px">${r.tickets} of ${r.total_tickets} tickets (${Math.round(100*r.tickets/r.total_tickets)}% chance)</span></div>`; refresh(); }catch(e){ toast(e.message,true); } });
 $('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({label:a[0],title:a[1]||'',note:a[2]||''})); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else toast('Prizes saved'); });
 $('t-add').addEventListener('click',async()=>{ const email=$('t-email').value.trim().toLowerCase(); if(!email) return; const {error}=await sb.from('team_members').insert({org_id:ORG.id,email,role:$('t-role').value,added_by:$('who').textContent}); if(error) toast(error.message,true); else { $('t-email').value=''; toast('Added'); refresh(); } });
-$('o-export').addEventListener('click',async()=>{ const {data:v}=await sb.from('visitors').select('name,phone,opt_in,created_at'); const {data:sc}=await sb.from('scans').select('visitor_id'); const cnt={}; (sc||[]).forEach(x=>cnt[x.visitor_id]=(cnt[x.visitor_id]||0)+1); const {data:vv}=await sb.from('visitors').select('id,name,phone,opt_in,created_at'); download('visitors.csv',csv([['Name','Phone','Opted in','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone,x.opt_in?'yes':'no',new Date(x.created_at).toLocaleString(),cnt[x.id]||0])])); });
-$('o-export-scans').addEventListener('click',async()=>{ const {data}=await sb.from('scans').select('created_at,visitors(name,phone),stores(name)').order('created_at'); download('scans.csv',csv([['When','Visitor','Phone','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitors?.name,x.visitors?.phone,x.stores?.name])])); });
+$('o-export').addEventListener('click',async()=>{ const {data:v}=await sb.from('visitors').select('name,phone,opt_in,created_at'); const {data:sc}=await sb.from('scans').select('visitor_id'); const cnt={}; (sc||[]).forEach(x=>cnt[x.visitor_id]=(cnt[x.visitor_id]||0)+1); const {data:vv}=await sb.from('visitors').select('id,name,phone,email,opt_in,marketing_ok,created_at'); download('visitors.csv',csv([['Name','Phone','Email','Agreed to drawing','OK to send offers','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone||'',x.email||'',x.opt_in?'yes':'no',x.marketing_ok?'yes':'no',new Date(x.created_at).toLocaleString(),cnt[x.id]||0])])); });
+$('o-export-scans').addEventListener('click',async()=>{ const {data}=await sb.from('scans').select('created_at,visitors(name,phone,email),stores(name)').order('created_at'); download('scans.csv',csv([['When','Visitor','Phone','Email','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitors?.name,x.visitors?.phone||'',x.visitors?.email||'',x.stores?.name])])); });
 </script>
 </body>
 </html>
