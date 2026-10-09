@@ -35,11 +35,18 @@
       <label>Email <small>(this becomes your sign-in)</small></label><input id="a-email" inputmode="email" placeholder="you@yourstore.com">
       <label>Phone <small>(email or phone required)</small></label><input id="a-phone" inputmode="tel">
       <label>Person of contact</label><input id="a-contact">
-      <label>Address on Oak Tree Road</label><div class="ac"><input id="a-address" autocomplete="off" placeholder="Start typing the street number and name"><div class="ac-list hidden" id="a-address-list"></div></div>
+      <label>Store address</label>
+      <div class="row"><input id="a-num" inputmode="numeric" autocomplete="off" placeholder="Street no. (e.g. 1534)" style="flex:1"><select id="a-street" style="flex:2"><option>Oak Tree Rd</option><option>Middlesex Ave</option><option>Wood Ave</option><option>Lincoln Hwy</option><option value="__other">Other street…</option></select></div>
+      <input id="a-street-other" class="hidden" autocomplete="off" placeholder="Street name" style="margin-top:10px">
+      <input id="a-unit" autocomplete="off" placeholder="Suite or unit (optional)" style="margin-top:10px">
+      <select id="a-town" style="margin-top:10px"><option value="Iselin, NJ 08830">Iselin, NJ 08830</option><option value="Edison, NJ 08820">Edison, NJ 08820</option><option value="Woodbridge, NJ 07095">Woodbridge, NJ 07095</option></select>
+      <input id="a-address" type="hidden">
+      <p class="muted" id="a-addr-preview" style="font-size:15px;margin:8px 0 0"></p>
       <label>Website or Instagram</label><input id="a-web">
       <label>Logo <small>(optional — becomes your stamp in the passport)</small></label>
       <div class="row"><input id="a-logo" type="file" accept="image/*" style="flex:1"><div id="a-logo-prev" class="hidden" style="width:64px;height:64px;border-radius:16px;border:3px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden"><img id="a-logo-img" style="width:52px;height:52px;object-fit:contain"></div></div>
       <label>Festival special <small>(what visitors see when they scan you)</small></label><textarea id="a-special" rows="2" placeholder="e.g. Free chai with any snack, Oct 15–16"></textarea>
+      <label style="display:flex;gap:12px;align-items:flex-start;font-weight:600;font-size:17px;line-height:1.4;margin-top:16px"><input type="checkbox" id="a-ack" style="width:26px;height:26px;margin-top:2px;flex:none"><span>I understand that customers who choose to receive offers can remove themselves at any time. When they do, I will delete them from my own lists and stop contacting them within 14 days.</span></label>
       <div style="margin-top:18px"><button class="btn" id="a-submit">Submit my store</button></div>
       <p class="err" id="a-err"></p>
       <div id="a-done" class="special hidden"><strong>Submitted.</strong> The organizer will review it. Once approved, sign in above with your email to get your QR poster.</div>
@@ -61,23 +68,20 @@ let logoData=null;
 $('a-logo').addEventListener('change', async e=>{ const f=e.target.files[0]; if(!f) return; try{ logoData=await processLogo(f); $('a-logo-img').src=logoData.preview; $('a-logo-prev').style.borderColor=logoData.color; $('a-logo-prev').classList.remove('hidden'); }catch(err){ toast('Could not read that image',true); logoData=null; } });
 $('a-submit').addEventListener('click', async ()=>{
   $('a-err').textContent='';
-  const p={name:$('a-name').value.trim(),category:$('a-cat').value,email:$('a-email').value.trim().toLowerCase(),phone:$('a-phone').value.trim(),contact:$('a-contact').value.trim(),address:$('a-address').value.trim(),website:$('a-web').value.trim(),special:$('a-special').value.trim()};
+  if(!$('a-ack').checked){ $('a-err').textContent='Please tick the box to confirm you will honor customer removal requests.'; return; }
+  const p={ack_removals:true,name:$('a-name').value.trim(),category:$('a-cat').value,email:$('a-email').value.trim().toLowerCase(),phone:$('a-phone').value.trim(),contact:$('a-contact').value.trim(),address:$('a-address').value.trim(),website:$('a-web').value.trim(),special:$('a-special').value.trim()};
   try{ $('a-submit').disabled=true; if(logoData){ p.logo_url=await uploadLogo(logoData.blob); p.brand_color=logoData.color; } await rpc('store_apply',{p_org_slug:OTR.org,p:p}); $('a-done').classList.remove('hidden'); $('a-submit').classList.add('hidden'); toast('Submitted for approval'); }
   catch(e){ $('a-err').textContent=e.message.replace(/^.*?: /,''); } finally{ $('a-submit').disabled=false; }
 });
 $('signout').addEventListener('click',signOut);
 
-// address suggestions (OpenStreetMap via Photon, biased to Iselin NJ) — no key needed
-(function(){ const inp=$('a-address'), list=$('a-address-list'); let t=null, last='';
-  inp.addEventListener('input',()=>{ clearTimeout(t); const q=inp.value.trim(); if(q.length<3){ list.classList.add('hidden'); return; } t=setTimeout(()=>lookup(q),250); });
-  inp.addEventListener('blur',()=>setTimeout(()=>list.classList.add('hidden'),150));
-  async function lookup(q){ if(q===last) return; last=q;
-    try{ const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lat=40.575&lon=-74.322&limit=6&lang=en'); const j=await r.json();
-      const items=(j.features||[]).map(f=>{const p=f.properties; return [p.housenumber,p.street].filter(Boolean).join(' ')+(p.city?', '+p.city:'')+(p.state?', '+p.state:'')+(p.postcode?' '+p.postcode:'');}).filter((v,i,a)=>v.trim()&&a.indexOf(v)===i);
-      list.innerHTML=items.map(s=>`<div>${esc(s)}</div>`).join(''); list.classList.toggle('hidden',!items.length);
-      list.querySelectorAll('div').forEach(d=>d.addEventListener('mousedown',()=>{ inp.value=d.textContent; list.classList.add('hidden'); }));
-    }catch(e){ list.classList.add('hidden'); } }
-})();
+// address: structured fields (street number + street + unit + town), so it is always accurate
+(function(){ const num=$('a-num'), st=$('a-street'), so=$('a-street-other'), un=$('a-unit'), tw=$('a-town'), out=$('a-address'), pv=$('a-addr-preview');
+  function compose(){ so.classList.toggle('hidden', st.value!=='__other');
+    const street=st.value==='__other'?so.value.trim():st.value; const n=num.value.trim().replace(/[^0-9A-Za-z\-\/ ]/g,'');
+    const first=[n,street].filter(Boolean).join(' ')+(un.value.trim()?', '+un.value.trim():'');
+    out.value=(n&&street)?[first,tw.value].join(', '):''; pv.textContent=out.value?('Your address: '+out.value):''; }
+  [num,st,so,un,tw].forEach(e=>e.addEventListener('input',compose)); compose(); })();
 
 wireSignIn(async user=>{
   $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
@@ -89,13 +93,16 @@ async function renderMine(){
   const {data:stores,error}=await sb.from('stores').select('*').order('name');
   if(error){ toast(error.message,true); return; }
   if(!stores.length){ $('mine').innerHTML='<div class="card"><h2 style="font-size:22px">No store is linked to this email yet</h2><p class="muted">If you just applied, the organizer hasn\'t approved it yet. If you think this is a mistake, contact the organizer.</p></div>'; return; }
-  const {data:scans}=await sb.from('scans').select('id,store_id,visitor_id,created_at,visitors(name,phone)').order('created_at',{ascending:false}).limit(500);
+  const {data:scans}=await sb.from('scans').select('id,store_id,visitor_id,created_at,visitors(name,phone,email)').order('created_at',{ascending:false}).limit(500);
   const {data:visits}=await sb.from('visits').select('store_id,visitor_id,created_at');
+  const {data:rems}=await sb.from('contact_removals').select('store_id,visitor_name,contact,due_by').is('acknowledged_at',null).order('removed_at');
+  const ackCard=s=>`<div class="card noprint" style="border:3px solid var(--gold)"><h3 style="font-size:20px">One quick confirmation</h3><p style="margin:6px 0 10px">Customers who choose to receive offers can remove themselves at any time. When they do, you delete them from your own lists and stop contacting them within 14 days. Your customer list stays hidden until you confirm.</p><label style="display:flex;gap:12px;align-items:flex-start;font-weight:600;font-size:17px;line-height:1.4"><input type="checkbox" id="ack-${s.id}" style="width:26px;height:26px;margin-top:2px;flex:none"><span>I understand and agree.</span></label><div style="margin-top:12px"><button class="btn small" data-agree="${s.id}">Confirm</button></div></div>`;
+  const removalPanel=id=>{ const r=(rems||[]).filter(x=>x.store_id===id); if(!r.length) return ''; return `<div class="card noprint" style="border:3px solid var(--bad)"><h3 style="font-size:20px">Please delete these people <span class="pill">${r.length}</span></h3><p class="muted" style="font-size:15px">These visitors removed themselves from store lists. Please delete their contact details from your own records and stop contacting them by the date shown.</p><div class="scrollx"><table><thead><tr><th>Name</th><th>Contact</th><th>Delete by</th></tr></thead><tbody>${r.map(x=>`<tr><td>${esc(x.visitor_name)}</td><td>${esc(x.contact)}</td><td>${esc(x.due_by)}</td></tr>`).join('')}</tbody></table></div><div style="margin-top:12px"><button class="btn small" data-ack="${id}">I have deleted them</button></div></div>`; };
   const today=new Date(); today.setHours(0,0,0,0);
   $('mine').innerHTML=stores.map(s=>{
     const mine=(scans||[]).filter(x=>x.store_id===s.id), tv=(visits||[]).filter(x=>x.store_id===s.id);
     const scansToday=mine.filter(x=>new Date(x.created_at)>=today).length;
-    const cust={}; mine.forEach(x=>{cust[x.visitor_id]={name:x.visitors?.name,phone:x.visitors?.phone,first:x.created_at,visits:1};}); tv.forEach(x=>{ if(cust[x.visitor_id]) cust[x.visitor_id].visits++; });
+    const cust={}; mine.forEach(x=>{ if(x.visitors) cust[x.visitor_id]={name:x.visitors.name,phone:x.visitors.phone||x.visitors.email||'',first:x.created_at,visits:1}; }); tv.forEach(x=>{ if(cust[x.visitor_id]) cust[x.visitor_id].visits++; });
     const link=OTR.site+'?s='+s.id;
     if(s.status!=='approved') return `<div class="card"><h2 style="font-size:24px">${esc(s.name)}</h2><div class="special" style="margin-top:12px"><strong>${s.status==='pending'?'Waiting for organizer approval.':'This store was not approved.'}</strong> ${s.status==='pending'?'Your QR poster and scans appear here the moment you are approved.':'Contact the organizer.'}</div></div>`;
     return `<div class="card">
@@ -109,7 +116,7 @@ async function renderMine(){
       <div class="row"><input id="sp-${s.id}" value="${esc(s.special||'')}" style="flex:1"><button class="btn small" data-save="${s.id}">Update</button></div>
     </div>
     <div class="card">
-      <div class="poster" id="poster-${s.id}"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div>${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:72px;height:72px;object-fit:contain;margin:8px auto 0;display:block">`:''}<h3>${esc(s.name)}</h3><div class="qr" id="qr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win · No purchase necessary</div></div>
+      <div class="poster" id="poster-${s.id}"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div>${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:72px;height:72px;object-fit:contain;margin:8px auto 0;display:block">`:''}<h3>${esc(s.name)}</h3><div class="qr" id="qr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win</div></div>
       <div class="row noprint" style="margin-top:12px"><button class="btn ghost small" onclick="window.print()">Print poster</button><span class="muted" style="font-size:14px;word-break:break-all">${esc(link)}</span></div>
     </div>
     <div class="card noprint">
@@ -118,14 +125,16 @@ async function renderMine(){
     </div>
     <div class="card noprint">
       <h3 style="font-size:20px">My customer list <span class="pill">${Object.keys(cust).length} people</span></h3>
-      <p class="muted" style="font-size:15px">Only visitors who opted in, and only your store's scans.</p>
-      <div class="scrollx"><table><thead><tr><th>Name</th><th>Phone</th><th>Visits</th></tr></thead><tbody>${Object.values(cust).map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${c.visits}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">Your list grows with every scan.</td></tr>'}</tbody></table></div>
+      <p class="muted" style="font-size:15px">People who chose to receive your festival offers, from your store's scans only. ${mine.length-Object.keys(cust).length} other visitor(s) scanned you but chose not to share their details. Only contact the people listed here, and stop if anyone asks.</p>
+      <div class="scrollx"><table><thead><tr><th>Name</th><th>Phone or email</th><th>Visits</th></tr></thead><tbody>${Object.values(cust).map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${c.visits}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">Your list grows with every scan.</td></tr>'}</tbody></table></div>
       <div style="margin-top:12px"><button class="btn ghost small" data-csv="${s.id}">Download my list (CSV)</button></div>
-    </div>`;
+    </div>${removalPanel(s.id)}${s.data_terms_ack_at?'':ackCard(s)}`;
   }).join('');
   stores.forEach(s=>{ if(s.status==='approved') qrInto($('qr-'+s.id),OTR.site+'?s='+s.id,s.logo_url); });
   document.querySelectorAll('[data-save]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.save; const {error}=await sb.from('stores').update({special:$('sp-'+id).value.trim()}).eq('id',id); if(error) toast(error.message,true); else toast('Special updated'); }));
-  document.querySelectorAll('[data-csv]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.csv; const rows=[['Name','Phone','First visit','Visits']]; (scans||[]).filter(x=>x.store_id===id).forEach(x=>rows.push([x.visitors?.name,x.visitors?.phone,new Date(x.created_at).toLocaleString(),1+(visits||[]).filter(v=>v.store_id===id&&v.visitor_id===x.visitor_id).length])); download('my-customers.csv',csv(rows)); }));
+  document.querySelectorAll('[data-csv]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.csv; const rows=[['Name','Phone or email','First visit','Visits']]; (scans||[]).filter(x=>x.store_id===id&&x.visitors).forEach(x=>rows.push([x.visitors.name,x.visitors.phone||x.visitors.email||'',new Date(x.created_at).toLocaleString(),1+(visits||[]).filter(v=>v.store_id===id&&v.visitor_id===x.visitor_id).length])); download('my-customers.csv',csv(rows)); }));
+  document.querySelectorAll('[data-agree]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.agree; if(!document.getElementById('ack-'+id).checked){ toast('Please tick the box first',true); return; } try{ await rpc('store_ack_terms',{p_store:id}); toast('Thank you. Confirmed.'); renderMine(); }catch(e){ toast(e.message,true); } }));
+  document.querySelectorAll('[data-ack]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('store_ack_removals',{p_store:b.dataset.ack}); toast('Thank you. Recorded.'); renderMine(); }catch(e){ toast(e.message,true); } }));
 }
 </script>
 </body>
