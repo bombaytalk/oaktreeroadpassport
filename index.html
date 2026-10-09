@@ -10,6 +10,7 @@
 <link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
+<style>label.chk{display:flex;gap:12px;align-items:flex-start;font-weight:600;font-size:17px;line-height:1.4;margin-top:16px}label.chk input{width:26px;height:26px;margin-top:2px;flex:none}label.chk small{display:block;font-weight:500;color:var(--muted);font-size:15px;margin-top:2px}label.chk a{color:var(--plum)}.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}.chips button{font:inherit;font-weight:700;font-size:15px;padding:8px 14px;border-radius:999px;border:2px solid var(--plum);background:#fff;color:var(--plum);cursor:pointer;min-height:44px}.chips button[aria-pressed="true"]{background:var(--plum);color:#fff}.dir-item{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}.dir-logo{width:44px;height:44px;border-radius:12px;object-fit:contain;flex:none;border:2px solid var(--line);background:#fff}.dir-ini{display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:var(--plum);border-color:var(--plum)}.tag-ok{font-size:13px;font-weight:800;color:var(--ok);background:#E3F0E8;border-radius:999px;padding:2px 8px;margin-left:6px}.dir-item a{color:var(--plum);font-weight:600}</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 </head>
@@ -30,8 +31,10 @@
     <h2 style="font-size:26px">Enter this once</h2>
     <p class="muted" style="margin:6px 0 0">After that, every scan is one tap. Your phone will ask for location — stamps only count at the store.</p>
     <label>Your name</label><input id="v-name" autocomplete="name" placeholder="First and last name">
-    <label>Mobile number <small>(so we can reach you if you win)</small></label><input id="v-phone" inputmode="tel" autocomplete="tel" placeholder="(732) 555-0100">
-    <label style="display:flex;gap:10px;align-items:flex-start;font-weight:600;font-size:16px;margin-top:16px"><input type="checkbox" id="v-optin" checked style="width:auto;margin-top:5px"><span>Enter me in the raffle and send me Oak Tree Road specials. No purchase necessary.</span></label>
+    <label>Mobile number <small>(mobile or email, one is enough, so we can reach you if you win)</small></label><input id="v-phone" inputmode="tel" autocomplete="tel" placeholder="(732) 555-0100">
+    <label>Email <small>(optional if you gave a mobile number)</small></label><input id="v-email" inputmode="email" autocomplete="email" placeholder="you@example.com">
+    <label class="chk"><input type="checkbox" id="v-agree"><span>I agree to the <a href="privacy.html" target="_blank" rel="noopener">Privacy Notice</a> and <a href="rules.html" target="_blank" rel="noopener">Drawing Rules</a>. I am entered in the prize drawing. No purchase necessary.</span></label>
+    <label class="chk"><input type="checkbox" id="v-offers"><span>Send me each store's festival specials and deals. <small>Optional. The stores I scan can see my name and contact details. I can remove myself any time.</small></span></label>
     <div style="margin-top:18px"><button class="btn" id="v-join">Start collecting stamps</button></div>
     <p class="err" id="v-err"></p>
   </section>
@@ -39,7 +42,7 @@
   <section id="passport" class="hidden">
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <div><div class="muted" style="font-size:15px">Hi, <strong id="v-hello"></strong></div><div class="big" id="v-entries">0</div><div style="font-weight:800;margin-top:-2px">raffle entries</div></div>
+        <div><div class="muted" style="font-size:15px">Hi, <strong id="v-hello"></strong></div><div class="big" id="v-entries">0</div><div style="font-weight:800;margin-top:-2px">drawing entries</div></div>
         <div style="text-align:right"><div class="muted" style="font-size:15px">stamps</div><div class="big" id="v-count">0</div><div class="muted" style="font-size:15px" id="v-total"></div></div>
       </div>
       <div class="stamps" id="v-stamps"></div>
@@ -57,16 +60,19 @@
       <div id="v-prizes"></div>
     </div>
 
-    <div class="card">
-      <h3 style="font-size:22px">Specials on Oak Tree Road</h3>
-      <div id="v-specials"></div>
+    <div class="card" id="v-dir-card">
+      <h3 style="font-size:22px">Participating stores</h3>
+      <p class="muted" style="font-size:15px;margin:2px 0 8px">Tap a category to browse. Stores with a festival special show it here.</p>
+      <div class="chips" id="v-chips"></div>
+      <div id="v-dir"></div>
     </div>
-    <p class="muted" style="font-size:14px;text-align:center">Winners announced each night after Aarti. <a href="#" id="v-reset" style="color:var(--muted)">Not you? Start over</a></p>
+    <div class="card hidden" id="v-offers-card"><h3 style="font-size:20px">Store offers are on</h3><p class="muted" style="font-size:15px;margin:4px 0 10px">Stores you scanned can see your name and contact details and send you festival offers. You can stop that at any time.</p><button class="btn ghost small" id="v-remove">Remove me from store lists</button></div>
+<p class="muted" style="font-size:14px;text-align:center">Winners announced each night after Aarti. <a href="#" id="v-reset" style="color:var(--muted)">Not you? Start over</a></p>
   </section>
 
   <section id="noaccess" class="card hidden"><h2 style="font-size:24px">Scan a store's QR code to begin</h2><p class="muted">Look for the Oak Tree Road Passport poster at any participating store's counter.</p></section>
 </main>
-<footer>Oak Tree Road Passport · Proud to support Woodbridge Township's Buy Local program<br><a href="https://dotcodenetworks.com" target="_blank" rel="noopener">Powered by DotCode Networks</a></footer>
+<footer>Oak Tree Road Passport · Proud to support Woodbridge Township's Buy Local program<br><a href="privacy.html">Privacy Notice</a> · <a href="rules.html">Drawing Rules</a><br><a href="https://dotcodenetworks.com" target="_blank" rel="noopener">Powered by DotCode Networks</a></footer>
 <div class="toast" id="toast"></div>
 
 <script src="shared.js"></script>
@@ -88,7 +94,8 @@ async function boot(){
 $('v-join').addEventListener('click', async ()=>{
   $('v-err').textContent='';
   try{ $('v-join').disabled=true;
-    const r=await rpc('visitor_register',{p_org_slug:OTR.org,p_name:$('v-name').value,p_phone:$('v-phone').value,p_opt_in:$('v-optin').checked,p_device:DEV});
+    if(!$('v-agree').checked){ $('v-err').textContent='Please tick the first box to agree and enter the prize drawing.'; return; }
+    const r=await rpc('visitor_register',{p_org_slug:OTR.org,p_name:$('v-name').value,p_phone:$('v-phone').value,p_opt_in:true,p_device:DEV,p_email:$('v-email').value,p_marketing:$('v-offers').checked});
     token=r.token; try{localStorage.setItem(TOK,token);}catch(e){}
     $('signup').classList.add('hidden');
     if(pendingStore) await scan(pendingStore); else await render();
@@ -106,6 +113,17 @@ async function scan(id){
     history.replaceState(null,'',location.pathname);
   }catch(e){ if(/unknown visitor/.test(e.message)){ try{localStorage.removeItem(TOK);}catch(_){} token=null; pendingStore=id; $('signup').classList.remove('hidden'); } else { toast(e.message,true); await render(); } }
 }
+let DIR_STORES=[], DIR_CAT='All';
+function renderDirectory(stores){
+  DIR_STORES=stores||[];
+  const catOf=s=>s.category||'Other';
+  const cats=['All',...[...new Set(DIR_STORES.map(catOf))].sort()];
+  if(!cats.includes(DIR_CAT)) DIR_CAT='All';
+  $('v-chips').innerHTML=cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===DIR_CAT}">${esc(c)} (${c==='All'?DIR_STORES.length:DIR_STORES.filter(s=>catOf(s)===c).length})</button>`).join('');
+  $('v-chips').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ DIR_CAT=b.dataset.cat; renderDirectory(DIR_STORES); }));
+  const list=DIR_STORES.filter(s=>DIR_CAT==='All'||catOf(s)===DIR_CAT).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  $('v-dir').innerHTML=list.map(s=>{ const maps=s.address?('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.address)):''; return `<div class="dir-item">${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" class="dir-logo">`:`<div class="dir-logo dir-ini">${esc((String(s.name||'?').trim()[0]||'?').toUpperCase())}</div>`}<div style="flex:1"><div style="font-weight:800">${esc(s.name)}${s.stamped?'<span class="tag-ok">Stamped</span>':''}</div>${s.special?`<div class="special" style="margin:6px 0">${esc(s.special)}</div>`:''}${s.address?`<div class="muted" style="font-size:15px"><a href="${esc(maps)}" target="_blank" rel="noopener">${esc(s.address)}</a></div>`:''}</div></div>`; }).join('')||'<p class="muted">Stores appear here as they join.</p>';
+}
 async function render(highlight){
   const p=await rpc('visitor_passport',{p_token:token});
   $('landing').classList.add('hidden'); $('passport').classList.remove('hidden');
@@ -119,9 +137,12 @@ async function render(highlight){
   const prizes=Array.isArray(p.prizes)?p.prizes:[];
   $('v-prizes-card').classList.toggle('hidden',!prizes.length);
   $('v-prizes').innerHTML=prizes.map(z=>`<div class="special"><div class="muted" style="font-size:14px;font-weight:800">${esc(z.label)}</div><div style="font-weight:800">${esc(z.title)}</div><div class="muted" style="font-size:15px">${esc(z.note||'')}</div></div>`).join('');
-  $('v-specials').innerHTML=p.stores.filter(s=>s.special).map(s=>`<div class="special"><strong>${esc(s.name)}</strong> · ${esc(s.special)}</div>`).join('')||'<p class="muted">Specials appear here as stores post them.</p>';
+  renderDirectory(p.stores);
+ showOffers();
 }
-boot().catch(e=>{ toast(e.message,true); });
+$('v-remove').addEventListener('click',async()=>{ if(!confirm('Remove your name and contact details from every store\'s list? You stay in the prize drawing.')) return; try{ await rpc('visitor_remove_me',{p_token:token}); $('v-offers-card').classList.add('hidden'); toast('Done. Stores can no longer see your contact details.'); }catch(e){ toast(e.message,true); } });
+async function showOffers(){ try{ const o=await rpc('visitor_offers_status',{p_token:token}); $('v-offers-card').classList.toggle('hidden',!(o&&o.offers)); }catch(e){} }
+boot().then(()=>{ if(token) showOffers(); }).catch(e=>{ toast(e.message,true); });
 </script>
 </body>
 </html>
