@@ -42,6 +42,7 @@
         <div><div class="big" id="o-scans">0</div><div style="font-weight:800">scans</div></div>
         <div><div class="big" id="o-today">0</div><div style="font-weight:800">today</div></div>
       </div></div>
+      <div class="card"><h3 style="font-size:22px">Attendance by day <span class="pill">people who scanned</span></h3><p class="muted" style="font-size:15px;margin:2px 0 0">Each person is counted once per day, no matter how many stores they scan. Disabled passports are not counted.</p><div id="o-daily"></div></div>
       <div class="card"><h3 style="font-size:22px">Store leaderboard</h3><ol class="leader" id="o-leader"></ol></div>
       <div class="card"><h3 style="font-size:22px">Latest scans <span class="pill">live</span></h3><div class="scrollx"><table><thead><tr><th>When</th><th>Visitor</th><th>Store</th></tr></thead><tbody id="o-latest"></tbody></table></div></div>
       <div class="card"><h3 style="font-size:22px">Links</h3>
@@ -93,7 +94,7 @@ wireSignIn(async user=>{
   ORG=orgs[0]; $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
   $('lnk-store').textContent=OTR.site+'store.html'; $('lnk-org').textContent=OTR.site+'organizer.html';
   await refresh();
-  sb.channel('org-live').on('postgres_changes',{event:'*',schema:'public',table:'scans'},()=>refresh()).on('postgres_changes',{event:'*',schema:'public',table:'stores'},()=>refresh()).subscribe();
+  sb.channel('org-live').on('postgres_changes',{event:'*',schema:'public',table:'scans'},softRefresh).on('postgres_changes',{event:'*',schema:'public',table:'stores'},softRefresh).subscribe();
 });
 
 let ST_CAT='All';
@@ -166,17 +167,30 @@ function renderStoresTab(all){
   root.querySelectorAll('[data-owner]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.owner; const {error}=await sb.from('stores').update({owner_email:$('oe-'+id).value.trim().toLowerCase()||null}).eq('id',id); if(error) toast(error.message,true); else toast('Sign-in email saved'); }));
 }
 
+function renderDaily(days){
+  if(!days||!days.length) return '<p class="muted" style="margin:8px 0 0">No scans yet. Attendance for each festival day will show here once people start scanning.</p>';
+  const hl=h=>{ const x=((h+11)%12)+1; return x+(h<12?'a':'p'); };
+  return days.map(d=>{
+    const hrs=d.hours||[]; const mx=Math.max(1,...hrs.map(h=>h.people));
+    const label=new Date(d.day+'T12:00:00').toLocaleDateString([], {weekday:'long',month:'short',day:'numeric'});
+    const bars=hrs.map(h=>`<div style="flex:1;text-align:center;min-width:30px"><div style="height:${Math.max(4,Math.round(56*h.people/mx))}px;background:var(--plum);border-radius:6px 6px 0 0;margin:0 2px"></div><div class="muted" style="font-size:12px;margin-top:2px">${hl(h.hour)}</div><div style="font-size:12px;font-weight:800">${h.people}</div></div>`).join('');
+    return `<div style="padding:12px 0;border-top:1px solid var(--line);margin-top:10px"><div class="row" style="justify-content:space-between;align-items:baseline"><div style="font-weight:800;font-size:18px">${esc(label)}</div><div><span class="big" style="font-size:34px">${d.people}</span> <span style="font-weight:800">people</span></div></div><div class="muted" style="font-size:15px">${d.scans} scans \u00b7 ${d.new_signups} new sign-ups</div>${bars?`<div style="display:flex;align-items:flex-end;margin-top:10px;overflow-x:auto">${bars}</div><div class="muted" style="font-size:12px;margin-top:2px">People scanning each hour (New Jersey time)</div>`:''}</div>`;
+  }).join('');
+}
+let _sr={last:0,t:null};
+function softRefresh(){ const wait=10000-(Date.now()-_sr.last); if(wait<=0){ _sr.last=Date.now(); refresh(); } else if(!_sr.t){ _sr.t=setTimeout(()=>{ _sr.t=null; _sr.last=Date.now(); refresh(); },wait); } }
 async function refresh(){
   try{
     const o=await rpc('org_overview',{p_org:ORG.id}); ROLE=o.role;
     $('o-stores').textContent=o.stores; $('o-visitors').textContent=o.visitors; $('o-scans').textContent=o.scans; $('o-today').textContent=o.scans_today;
     $('o-leader').innerHTML=(o.leaderboard||[]).map((l,i)=>`<li><span>${i+1}. ${esc(l.name)}</span><strong>${l.scans}</strong></li>`).join('')||'<li class="muted">No approved stores yet.</li>';
+    try{ $('o-daily').innerHTML=renderDaily(await rpc('org_daily',{p_org:ORG.id})); }catch(e){ $('o-daily').innerHTML='<p class="muted" style="margin:8px 0 0">Attendance could not load. It will retry on the next update.</p>'; }
     $('pend-badge').textContent=o.pending; $('pend-badge').classList.toggle('hidden',!o.pending);
     const isMgr = ROLE==='owner'||ROLE==='coorganizer';
     ['tab-draw','tab-team'].forEach(id=>$(id).style.display=isMgr?'':'none'); document.querySelector('[data-tab=draw]').style.display=isMgr?'':'none'; document.querySelector('[data-tab=team]').style.display=isMgr?'':'none';
 
-    const {data:latest}=await sb.from('scans').select('created_at,visitors(name),stores(name)').order('created_at',{ascending:false}).limit(25);
-    $('o-latest').innerHTML=(latest||[]).map(x=>`<tr><td>${fmtDate(x.created_at)} ${fmtTime(x.created_at)}</td><td>${esc(x.visitors?.name)}</td><td>${esc(x.stores?.name)}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No scans yet.</td></tr>';
+    const latest=await rpc('org_latest_scans',{p_org:ORG.id,p_limit:25});
+    $('o-latest').innerHTML=(latest||[]).map(x=>`<tr><td>${fmtDate(x.created_at)} ${fmtTime(x.created_at)}</td><td>${esc(x.visitor_name)}</td><td>${esc(x.store_name)}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No scans yet.</td></tr>';
 
     const {data:stores}=await sb.from('stores').select('*').order('submitted_at',{ascending:false});
     const pend=(stores||[]).filter(s=>s.status==='pending');
@@ -202,8 +216,8 @@ async function refresh(){
 $('d-go').addEventListener('click',async()=>{ try{ const r=await rpc('draw_winner',{p_org:ORG.id,p_prize:$('d-prize').value.trim()||'Prize'}); if(!r.ok){ $('d-result').innerHTML=`<p class="muted">${esc(r.reason)}</p>`; return; } $('d-result').innerHTML=`<div class="special" style="font-size:22px"><strong>${esc(r.name)}</strong> — ${esc(r.phone)}<br><span class="muted" style="font-size:16px">${r.tickets} of ${r.total_tickets} tickets (${Math.round(100*r.tickets/r.total_tickets)}% chance)</span></div>`; refresh(); }catch(e){ toast(e.message,true); } });
 $('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({label:a[0],title:a[1]||'',note:a[2]||''})); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else toast('Prizes saved'); });
 $('t-add').addEventListener('click',async()=>{ const email=$('t-email').value.trim().toLowerCase(); if(!email) return; const {error}=await sb.from('team_members').insert({org_id:ORG.id,email,role:$('t-role').value,added_by:$('who').textContent}); if(error) toast(error.message,true); else { $('t-email').value=''; toast('Added'); refresh(); } });
-$('o-export').addEventListener('click',async()=>{ const {data:v}=await sb.from('visitors').select('name,phone,opt_in,created_at'); const {data:sc}=await sb.from('scans').select('visitor_id'); const cnt={}; (sc||[]).forEach(x=>cnt[x.visitor_id]=(cnt[x.visitor_id]||0)+1); const {data:vv}=await sb.from('visitors').select('id,name,phone,email,opt_in,marketing_ok,created_at'); download('visitors.csv',csv([['Name','Phone','Email','Agreed to drawing','OK to send offers','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone||'',x.email||'',x.opt_in?'yes':'no',x.marketing_ok?'yes':'no',new Date(x.created_at).toLocaleString(),cnt[x.id]||0])])); });
-$('o-export-scans').addEventListener('click',async()=>{ const {data}=await sb.from('scans').select('created_at,visitors(name,phone,email),stores(name)').order('created_at'); download('scans.csv',csv([['When','Visitor','Phone','Email','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitors?.name,x.visitors?.phone||'',x.visitors?.email||'',x.stores?.name])])); });
+$('o-export').addEventListener('click',async()=>{ try{ const vv=await rpc('org_export_visitors',{p_org:ORG.id}); download('visitors.csv',csv([['Name','Phone','Email','Agreed to drawing','OK to send offers','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone||'',x.email||'',x.opt_in?'yes':'no',x.marketing_ok?'yes':'no',new Date(x.created_at).toLocaleString(),x.entries||0])])); }catch(e){ toast(e.message,true); } });
+$('o-export-scans').addEventListener('click',async()=>{ try{ const data=await rpc('org_export_scans',{p_org:ORG.id}); download('scans.csv',csv([['When','Visitor','Phone','Email','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitor_name,x.phone||'',x.email||'',x.store_name])])); }catch(e){ toast(e.message,true); } });
 </script>
 </body>
 </html>
