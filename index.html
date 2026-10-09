@@ -117,11 +117,12 @@ let DIR_STORES=[], DIR_CAT='All';
 function renderDirectory(stores){
   DIR_STORES=stores||[];
   const catOf=s=>s.category||'Other';
-  const cats=['All',...[...new Set(DIR_STORES.map(catOf))].sort()];
+  const best=c=>Math.min(...DIR_STORES.filter(s=>catOf(s)===c).map(s=>s.tier??100));
+  const cats=['All',...[...new Set(DIR_STORES.map(catOf))].sort((a,b)=>(best(a)-best(b))||a.localeCompare(b))];
   if(!cats.includes(DIR_CAT)) DIR_CAT='All';
   $('v-chips').innerHTML=cats.map(c=>`<button type="button" data-cat="${esc(c)}" aria-pressed="${c===DIR_CAT}">${esc(c)} (${c==='All'?DIR_STORES.length:DIR_STORES.filter(s=>catOf(s)===c).length})</button>`).join('');
   $('v-chips').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ DIR_CAT=b.dataset.cat; renderDirectory(DIR_STORES); }));
-  const list=DIR_STORES.filter(s=>DIR_CAT==='All'||catOf(s)===DIR_CAT).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  const list=DIR_STORES.filter(s=>DIR_CAT==='All'||catOf(s)===DIR_CAT).sort((a,b)=>((a.tier??100)-(b.tier??100))||String(a.name).localeCompare(String(b.name)));
   $('v-dir').innerHTML=list.map(s=>{ const maps=s.address?('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.address)):''; return `<div class="dir-item">${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" class="dir-logo">`:`<div class="dir-logo dir-ini">${esc((String(s.name||'?').trim()[0]||'?').toUpperCase())}</div>`}<div style="flex:1"><div style="font-weight:800">${esc(s.name)}${s.stamped?'<span class="tag-ok">Stamped</span>':''}</div>${s.special?`<div class="special" style="margin:6px 0">${esc(s.special)}</div>`:''}${s.address?`<div class="muted" style="font-size:15px"><a href="${esc(maps)}" target="_blank" rel="noopener">${esc(s.address)}</a></div>`:''}</div></div>`; }).join('')||'<p class="muted">Stores appear here as they join.</p>';
 }
 async function render(highlight){
