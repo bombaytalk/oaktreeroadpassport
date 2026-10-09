@@ -86,31 +86,34 @@ $('signout').addEventListener('click',signOut);
 wireSignIn(async user=>{
   $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
   await renderMine();
-  sb.channel('store-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'scans'},()=>renderMine()).on('postgres_changes',{event:'INSERT',schema:'public',table:'visits'},()=>renderMine()).subscribe();
+  sb.channel('store-live').on('postgres_changes',{event:'INSERT',schema:'public',table:'scans'},softRender).on('postgres_changes',{event:'INSERT',schema:'public',table:'visits'},softRender).subscribe();
 });
 
+let _sr={last:0,t:null};
+function softRender(){ const wait=10000-(Date.now()-_sr.last); if(wait<=0){ _sr.last=Date.now(); renderMine(); } else if(!_sr.t){ _sr.t=setTimeout(()=>{ _sr.t=null; _sr.last=Date.now(); renderMine(); },wait); } }
 async function renderMine(){
   const {data:stores,error}=await sb.from('stores').select('*').order('name');
   if(error){ toast(error.message,true); return; }
   if(!stores.length){ $('mine').innerHTML='<div class="card"><h2 style="font-size:22px">No store is linked to this email yet</h2><p class="muted">If you just applied, the organizer hasn\'t approved it yet. If you think this is a mistake, contact the organizer.</p></div>'; return; }
-  const {data:scans}=await sb.from('scans').select('id,store_id,visitor_id,created_at,visitors(name,phone,email)').order('created_at',{ascending:false}).limit(500);
-  const {data:visits}=await sb.from('visits').select('store_id,visitor_id,created_at');
+  const sids=stores.map(s=>s.id);
+  const {data:scans}=await sb.from('scans').select('id,store_id,visitor_id,created_at').in('store_id',sids).order('created_at',{ascending:false}).limit(500);
+  const infos={}; await Promise.all(stores.filter(s=>s.status==='approved').map(async s=>{ try{ infos[s.id]=await rpc('store_customers',{p_store:s.id}); }catch(e){ infos[s.id]={acknowledged:false,total:0,today:0,repeat_visits:0,customers:[]}; } }));
   const {data:rems}=await sb.from('contact_removals').select('store_id,visitor_name,contact,due_by').is('acknowledged_at',null).order('removed_at');
   const ackCard=s=>`<div class="card noprint" style="border:3px solid var(--gold)"><h3 style="font-size:20px">One quick confirmation</h3><p style="margin:6px 0 10px">Customers who choose to receive offers can remove themselves at any time. When they do, you delete them from your own lists and stop contacting them within 14 days. Your customer list stays hidden until you confirm.</p><label style="display:flex;gap:12px;align-items:flex-start;font-weight:600;font-size:17px;line-height:1.4"><input type="checkbox" id="ack-${s.id}" style="width:26px;height:26px;margin-top:2px;flex:none"><span>I understand and agree.</span></label><div style="margin-top:12px"><button class="btn small" data-agree="${s.id}">Confirm</button></div></div>`;
   const removalPanel=id=>{ const r=(rems||[]).filter(x=>x.store_id===id); if(!r.length) return ''; return `<div class="card noprint" style="border:3px solid var(--bad)"><h3 style="font-size:20px">Please delete these people <span class="pill">${r.length}</span></h3><p class="muted" style="font-size:15px">These visitors removed themselves from store lists. Please delete their contact details from your own records and stop contacting them by the date shown.</p><div class="scrollx"><table><thead><tr><th>Name</th><th>Contact</th><th>Delete by</th></tr></thead><tbody>${r.map(x=>`<tr><td>${esc(x.visitor_name)}</td><td>${esc(x.contact)}</td><td>${esc(x.due_by)}</td></tr>`).join('')}</tbody></table></div><div style="margin-top:12px"><button class="btn small" data-ack="${id}">I have deleted them</button></div></div>`; };
   const today=new Date(); today.setHours(0,0,0,0);
   $('mine').innerHTML=stores.map(s=>{
-    const mine=(scans||[]).filter(x=>x.store_id===s.id), tv=(visits||[]).filter(x=>x.store_id===s.id);
-    const scansToday=mine.filter(x=>new Date(x.created_at)>=today).length;
-    const cust={}; mine.forEach(x=>{ if(x.visitors) cust[x.visitor_id]={name:x.visitors.name,phone:x.visitors.phone||x.visitors.email||'',first:x.created_at,visits:1}; }); tv.forEach(x=>{ if(cust[x.visitor_id]) cust[x.visitor_id].visits++; });
+    const mine=(scans||[]).filter(x=>x.store_id===s.id); const info=infos[s.id]||{total:0,today:0,repeat_visits:0,customers:[]};
+    const scansToday=info.today;
+    const cust={}; (info.customers||[]).forEach(c=>{ cust[c.visitor_id]={name:c.name,phone:c.contact||'',first:c.first_seen,visits:c.visits}; });
     const link=OTR.site+'?s='+s.id;
     if(s.status!=='approved') return `<div class="card"><h2 style="font-size:24px">${esc(s.name)}</h2><div class="special" style="margin-top:12px"><strong>${s.status==='pending'?'Waiting for organizer approval.':'This store was not approved.'}</strong> ${s.status==='pending'?'Your QR poster and scans appear here the moment you are approved.':'Contact the organizer.'}</div></div>`;
     return `<div class="card">
       <h2 style="font-size:26px">${esc(s.name)}</h2>
       <div class="row" style="justify-content:space-around;text-align:center;margin:16px 0">
         <div><div class="big">${scansToday}</div><div style="font-weight:800">scans today</div></div>
-        <div><div class="big">${mine.length}</div><div style="font-weight:800">customers</div></div>
-        <div><div class="big">${mine.length+tv.length}</div><div style="font-weight:800">visits</div></div>
+        <div><div class="big">${info.total}</div><div style="font-weight:800">customers</div></div>
+        <div><div class="big">${info.total+info.repeat_visits}</div><div style="font-weight:800">visits</div></div>
       </div>
       <label>Your festival special <small>(visitors see it on their next scan)</small></label>
       <div class="row"><input id="sp-${s.id}" value="${esc(s.special||'')}" style="flex:1"><button class="btn small" data-save="${s.id}">Update</button></div>
@@ -121,18 +124,18 @@ async function renderMine(){
     </div>
     <div class="card noprint">
       <h3 style="font-size:20px">Who scanned you <span class="pill">live</span></h3>
-      <div class="scrollx"><table><thead><tr><th>When</th><th>Visitor</th></tr></thead><tbody>${mine.slice(0,40).map(x=>`<tr><td>${fmtDate(x.created_at)} ${fmtTime(x.created_at)}</td><td>${esc(x.visitors?.name||'Visitor')}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">No scans yet.</td></tr>'}</tbody></table></div>
+      <div class="scrollx"><table><thead><tr><th>When</th><th>Visitor</th></tr></thead><tbody>${mine.slice(0,40).map(x=>`<tr><td>${fmtDate(x.created_at)} ${fmtTime(x.created_at)}</td><td>${esc((cust[x.visitor_id]&&cust[x.visitor_id].name)||'Visitor')}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">No scans yet.</td></tr>'}</tbody></table></div>
     </div>
     <div class="card noprint">
       <h3 style="font-size:20px">My customer list <span class="pill">${Object.keys(cust).length} people</span></h3>
-      <p class="muted" style="font-size:15px">People who chose to receive your festival offers, from your store's scans only. ${mine.length-Object.keys(cust).length} other visitor(s) scanned you but chose not to share their details. Only contact the people listed here, and stop if anyone asks.</p>
+      <p class="muted" style="font-size:15px">People who chose to receive your festival offers, from your store's scans only. ${Math.max(0,info.total-Object.keys(cust).length)} other visitor(s) scanned you but chose not to share their details. Only contact the people listed here, and stop if anyone asks.</p>
       <div class="scrollx"><table><thead><tr><th>Name</th><th>Phone or email</th><th>Visits</th></tr></thead><tbody>${Object.values(cust).map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${c.visits}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">Your list grows with every scan.</td></tr>'}</tbody></table></div>
       <div style="margin-top:12px"><button class="btn ghost small" data-csv="${s.id}">Download my list (CSV)</button></div>
     </div>${removalPanel(s.id)}${s.data_terms_ack_at?'':ackCard(s)}`;
   }).join('');
   stores.forEach(s=>{ if(s.status==='approved') qrInto($('qr-'+s.id),OTR.site+'?s='+s.id,s.logo_url); });
   document.querySelectorAll('[data-save]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.save; const {error}=await sb.from('stores').update({special:$('sp-'+id).value.trim()}).eq('id',id); if(error) toast(error.message,true); else toast('Special updated'); }));
-  document.querySelectorAll('[data-csv]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.csv; const rows=[['Name','Phone or email','First visit','Visits']]; (scans||[]).filter(x=>x.store_id===id&&x.visitors).forEach(x=>rows.push([x.visitors.name,x.visitors.phone||x.visitors.email||'',new Date(x.created_at).toLocaleString(),1+(visits||[]).filter(v=>v.store_id===id&&v.visitor_id===x.visitor_id).length])); download('my-customers.csv',csv(rows)); }));
+  document.querySelectorAll('[data-csv]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.csv; const rows=[['Name','Phone or email','First visit','Visits']]; ((infos[id]||{}).customers||[]).forEach(c=>rows.push([c.name,c.contact||'',new Date(c.first_seen).toLocaleString(),c.visits])); download('my-customers.csv',csv(rows)); }));
   document.querySelectorAll('[data-agree]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.agree; if(!document.getElementById('ack-'+id).checked){ toast('Please tick the box first',true); return; } try{ await rpc('store_ack_terms',{p_store:id}); toast('Thank you. Confirmed.'); renderMine(); }catch(e){ toast(e.message,true); } }));
   document.querySelectorAll('[data-ack]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('store_ack_removals',{p_store:b.dataset.ack}); toast('Thank you. Recorded.'); renderMine(); }catch(e){ toast(e.message,true); } }));
 }
