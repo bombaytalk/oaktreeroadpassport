@@ -10,6 +10,10 @@
 <link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
+<style>.stchips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}.stchips button{font:inherit;font-weight:700;font-size:14px;padding:6px 12px;border-radius:999px;border:2px solid var(--plum);background:#fff;color:var(--plum);cursor:pointer;min-height:38px}.stchips button[aria-pressed="true"]{background:var(--plum);color:#fff}
+.zh{font-weight:800;color:var(--plum);margin:12px 0 0}.dz{border:2px dashed var(--line);border-radius:16px;padding:8px;min-height:64px;margin:6px 0 14px}.dz.over{border-color:var(--gold);background:#FBF6EC}
+.srow{background:#fff;border:1px solid var(--line);border-radius:14px;margin:6px 0;padding:8px 10px}.srow.dragging{opacity:.4}.shead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.srow .grab{cursor:grab;font-weight:800;color:var(--muted);padding:4px 6px;user-select:none}.srow .nm{font-weight:800;flex:1;min-width:120px;font-size:18px}.srow .cat{font-size:14px}
+.srow .tin{width:68px;padding:8px;border:2px solid var(--line);border-radius:10px;font:inherit;font-weight:800;text-align:center}.srow .mv{min-width:40px;min-height:40px;border-radius:12px;border:2px solid var(--plum);background:#fff;color:var(--plum);font-weight:800;cursor:pointer}.sdet{padding:6px 2px 4px}</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="config.js"></script>
@@ -92,6 +96,76 @@ wireSignIn(async user=>{
   sb.channel('org-live').on('postgres_changes',{event:'*',schema:'public',table:'scans'},()=>refresh()).on('postgres_changes',{event:'*',schema:'public',table:'stores'},()=>refresh()).subscribe();
 });
 
+let ST_CAT='All';
+function renderStoresTab(all){
+  const list=(all||[]).filter(s=>s.status!=='pending');
+  const tierOf=s=>(s.tier==null?100:s.tier), catOf=s=>s.category||'Other';
+  const byId=Object.fromEntries(list.map(s=>[s.id,s]));
+  const byName=(a,b)=>String(a.name).localeCompare(String(b.name));
+  const RL=list.filter(s=>tierOf(s)<100).sort((a,b)=>(tierOf(a)-tierOf(b))||byName(a,b)).map(s=>s.id);
+  const rest=list.filter(s=>tierOf(s)>=100).sort(byName);
+  const best=c=>Math.min(...list.filter(s=>catOf(s)===c).map(tierOf));
+  const cats=['All',...[...new Set(list.map(catOf))].sort((a,b)=>(best(a)-best(b))||a.localeCompare(b))];
+  if(!cats.includes(ST_CAT)) ST_CAT='All';
+  const inView=s=>ST_CAT==='All'||catOf(s)===ST_CAT;
+  const openIds=[...document.querySelectorAll('#o-stores-list [data-det]:not(.hidden)')].map(d=>d.dataset.det);
+  async function save(newRL){
+    const want={}; newRL.forEach((id,i)=>{want[id]=i+1;});
+    const jobs=list.filter(s=>(want[s.id]||100)!==tierOf(s)).map(s=>sb.from('stores').update({tier:want[s.id]||100}).eq('id',s.id));
+    if(!jobs.length) return;
+    const res=await Promise.all(jobs); const bad=res.find(r=>r&&r.error);
+    if(bad) toast(bad.error.message,true); else toast('Order saved');
+    refresh();
+  }
+  const viewRL=()=>RL.filter(id=>inView(byId[id]));
+  function setViewOrder(nv){ const slots=RL.map((id,i)=>inView(byId[id])?i:-1).filter(i=>i>=0); const out=RL.slice(); slots.forEach((pos,k)=>{out[pos]=nv[k];}); return out; }
+  const api={
+    rank(id){ save(RL.includes(id)?RL:RL.concat([id])); },
+    unrank(id){ save(RL.filter(x=>x!==id)); },
+    move(id,delta){ const v=viewRL(), i=v.indexOf(id), j=i+delta; if(i<0||j<0||j>=v.length) return; const nv=v.slice(); [nv[i],nv[j]]=[nv[j],nv[i]]; save(setViewOrder(nv)); },
+    place(id,n){ const base=RL.filter(x=>x!==id); base.splice(Math.max(0,Math.min(n-1,base.length)),0,id); save(base); },
+    dropBefore(id,targetId){ const base=RL.filter(x=>x!==id); const at=targetId?base.indexOf(targetId):base.length; base.splice(at<0?base.length:at,0,id); save(base); }
+  };
+  window.__stApi=api;
+  const detail=s=>`<div class="sdet hidden" data-det="${s.id}"><div class="muted" style="font-size:15px;margin-bottom:6px">${[s.contact,s.phone,s.email,s.address].filter(Boolean).map(esc).join(' · ')}</div>
+      <label>Sign-in email for this store</label><div class="row"><input id="oe-${s.id}" value="${esc(s.owner_email||'')}" style="flex:1"><button class="btn small" data-owner="${s.id}">Save</button></div>
+      ${s.status==='approved'?`<details style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">QR poster</summary><div class="poster" style="margin-top:12px"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div><h3>${esc(s.name)}</h3><div class="qr" id="oqr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan \u00b7 Stamp \u00b7 Win</div></div></details>`:''}
+      <div class="row" style="margin-top:10px">${s.status==='approved'?`<button class="btn ghost small" data-status="rejected" data-id="${s.id}">Remove from passport</button>`:`<button class="btn small" data-status="approved" data-id="${s.id}">Approve</button>`}</div></div>`;
+  const rowHtml=(s,ranked)=>{ const pos=RL.indexOf(s.id)+1; return `<div class="srow" draggable="true" data-id="${s.id}" data-zone="${ranked?'ranked':'rest'}"><div class="shead"><span class="grab" title="Drag to move">\u22ee\u22ee</span>${ranked?`<input class="tin" type="number" min="1" max="999" value="${pos}" data-place="${s.id}" aria-label="Position of ${esc(s.name)}">`:''}<span class="nm">${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:26px;height:26px;object-fit:contain;vertical-align:middle;margin-right:6px">`:''}${esc(s.name)}</span><span class="muted cat">${esc(catOf(s))}</span>${s.status!=='approved'?`<span class="pill">${esc(s.status)}</span>`:''}${ranked?`<button class="mv" data-mv="-1" data-id="${s.id}" aria-label="Move up">\u25b2</button><button class="mv" data-mv="1" data-id="${s.id}" aria-label="Move down">\u25bc</button><button class="btn ghost small" data-unrank="${s.id}">Unrank</button>`:`<button class="btn small" data-rank="${s.id}">Rank</button>`}<button class="btn ghost small" data-tog="${s.id}">Details</button></div>${detail(s)}</div>`; };
+  const rankedShown=RL.map(id=>byId[id]).filter(inView), restShown=rest.filter(inView);
+  $('o-stores-list').innerHTML=`<div class="card">
+    <h3 style="font-size:20px;margin:0 0 4px">Stores <span class="pill">${list.length}</span></h3>
+    <p class="muted" style="font-size:15px;margin:0 0 8px">Stores in the top box are listed first in the app, in this order. Drag a store (or use the arrows, Rank, or the number box) to set its place. Everyone else is listed alphabetically.</p>
+    <div class="stchips">${cats.map(c=>`<button type="button" data-stcat="${esc(c)}" aria-pressed="${c===ST_CAT}">${esc(c)} (${c==='All'?list.length:list.filter(s=>catOf(s)===c).length})</button>`).join('')}</div>
+    <div class="zh">Shown first in the app</div>
+    <div class="dz" id="st-ranked" data-zone="ranked">${rankedShown.map(s=>rowHtml(s,true)).join('')||'<p class="muted" style="margin:8px">Nothing ranked here yet. Press Rank on a store, or drag one into this box.</p>'}</div>
+    <div class="zh">Everyone else, listed alphabetically</div>
+    <div class="dz" id="st-rest" data-zone="rest">${restShown.map(s=>rowHtml(s,false)).join('')||'<p class="muted" style="margin:8px">No other stores in this view.</p>'}</div></div>`;
+  openIds.forEach(id=>{ const d=document.querySelector(`#o-stores-list [data-det="${id}"]`); if(d) d.classList.remove('hidden'); });
+  const root=$('o-stores-list');
+  root.querySelectorAll('[data-stcat]').forEach(b=>b.addEventListener('click',()=>{ ST_CAT=b.dataset.stcat; renderStoresTab(all); }));
+  root.querySelectorAll('[data-tog]').forEach(b=>b.addEventListener('click',()=>{ const d=root.querySelector(`[data-det="${b.dataset.tog}"]`); d.classList.toggle('hidden'); }));
+  root.querySelectorAll('[data-mv]').forEach(b=>b.addEventListener('click',()=>api.move(b.dataset.id,parseInt(b.dataset.mv,10))));
+  root.querySelectorAll('[data-rank]').forEach(b=>b.addEventListener('click',()=>api.rank(b.dataset.rank)));
+  root.querySelectorAll('[data-unrank]').forEach(b=>b.addEventListener('click',()=>api.unrank(b.dataset.unrank)));
+  root.querySelectorAll('[data-place]').forEach(i=>i.addEventListener('change',()=>{ const n=parseInt(i.value,10); if(!(n>=1&&n<=999)){ toast('Enter a number from 1 to 999',true); return; } api.place(i.dataset.place,n); }));
+  let dragId=null;
+  root.querySelectorAll('.srow').forEach(r=>{
+    r.addEventListener('dragstart',e=>{ dragId=r.dataset.id; e.dataTransfer.setData('text/plain',dragId); e.dataTransfer.effectAllowed='move'; r.classList.add('dragging'); });
+    r.addEventListener('dragend',()=>{ r.classList.remove('dragging'); root.querySelectorAll('.dz').forEach(z=>z.classList.remove('over')); });
+    r.addEventListener('dragover',e=>{ e.preventDefault(); });
+    r.addEventListener('drop',e=>{ e.preventDefault(); e.stopPropagation(); const id=dragId||e.dataTransfer.getData('text/plain'); if(!id||id===r.dataset.id) return; if(r.dataset.zone==='ranked') api.dropBefore(id,r.dataset.id); else api.unrank(id); });
+  });
+  root.querySelectorAll('.dz').forEach(z=>{
+    z.addEventListener('dragover',e=>{ e.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave',()=>z.classList.remove('over'));
+    z.addEventListener('drop',e=>{ e.preventDefault(); z.classList.remove('over'); const id=dragId||e.dataTransfer.getData('text/plain'); if(!id) return; if(z.dataset.zone==='ranked') api.dropBefore(id,null); else api.unrank(id); });
+  });
+  list.filter(s=>s.status==='approved').forEach(s=>{ const el=$('oqr-'+s.id); if(el) qrInto(el,OTR.site+'?s='+s.id,s.logo_url); });
+  root.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('store_set_status',{p_store:b.dataset.id,p_status:b.dataset.status}); toast(b.dataset.status==='approved'?'Approved':'Removed'); refresh(); }catch(e){ toast(e.message,true); } }));
+  root.querySelectorAll('[data-owner]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.owner; const {error}=await sb.from('stores').update({owner_email:$('oe-'+id).value.trim().toLowerCase()||null}).eq('id',id); if(error) toast(error.message,true); else toast('Sign-in email saved'); }));
+}
+
 async function refresh(){
   try{
     const o=await rpc('org_overview',{p_org:ORG.id}); ROLE=o.role;
@@ -110,15 +184,7 @@ async function refresh(){
 
     try{ const fl=await rpc('flagged_scans',{p_org:ORG.id}); $('o-flagged').innerHTML=(fl||[]).map(f=>`<div style="border:2px solid var(--line);border-radius:14px;padding:12px;margin:8px 0"><div style="font-weight:800">${esc(f.name)} <span class="muted" style="font-weight:600">${esc(f.phone)}</span> ${f.voided?'<span class="pill">voided</span>':''}</div><div class="muted" style="font-size:15px">${f.entries} entries · ${esc(f.flags)}</div><div class="row" style="margin-top:8px"><button class="btn ${f.voided?'ghost ':''}small" data-void="${f.visitor_id}" data-to="${f.voided?'false':'true'}">${f.voided?'Restore':'Void entries'}</button></div></div>`).join('')||'<p class="muted">Nothing suspicious so far.</p>';
       document.querySelectorAll('[data-void]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('visitor_set_voided',{p_visitor:b.dataset.void,p_voided:b.dataset.to==='true'}); toast(b.dataset.to==='true'?'Entries voided':'Restored'); refresh(); }catch(e){ toast(e.message,true); } })); }catch(e){}
-    $('o-stores-list').innerHTML=(stores||[]).filter(s=>s.status!=='pending').map(s=>`<div class="card"><div class="row" style="justify-content:space-between"><h3 style="font-size:22px">${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-right:8px">`:''}${esc(s.name)}</h3><span class="pill">${esc(s.status)}</span></div><div class="muted" style="font-size:15px">${[s.category,s.contact,s.phone,s.email,s.address].filter(Boolean).map(esc).join(' · ')}</div>
-      <label>Sign-in email for this store</label><div class="row"><input id="oe-${s.id}" value="${esc(s.owner_email||'')}" style="flex:1"><button class="btn small" data-owner="${s.id}">Save</button></div>
-      <label>List position <small>(1 shows first in the app; everyone else is 100)</small></label><div class="row"><input id="ot-${s.id}" type="number" min="1" max="999" value="${s.tier??100}" style="flex:1"><button class="btn small" data-tier="${s.id}">Save</button></div>
-      ${s.status==='approved'?`<details style="margin-top:12px"><summary style="font-weight:800;cursor:pointer">QR poster</summary><div class="poster" style="margin-top:12px"><div style="font-weight:800;color:#5A2438;font-size:16px">Oak Tree Road Passport</div><h3>${esc(s.name)}</h3><div class="qr" id="oqr-${s.id}"></div><div style="font-size:24px;font-weight:800;color:#5A2438">Scan to collect your stamp</div><div style="font-size:15px;color:#6F6A73">Scan · Stamp · Win</div></div></details>`:''}
-      <div class="row" style="margin-top:10px">${s.status==='approved'?`<button class="btn ghost small" data-status="rejected" data-id="${s.id}">Remove from passport</button>`:`<button class="btn small" data-status="approved" data-id="${s.id}">Approve</button>`}</div></div>`).join('')||'<div class="card"><p class="muted">No stores yet. Share the store link.</p></div>';
-    (stores||[]).filter(s=>s.status==='approved').forEach(s=>{ const el=$('oqr-'+s.id); if(el) qrInto(el,OTR.site+'?s='+s.id,s.logo_url); });
-    document.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('store_set_status',{p_store:b.dataset.id,p_status:b.dataset.status}); toast(b.dataset.status==='approved'?'Approved':'Removed'); refresh(); }catch(e){ toast(e.message,true); } }));
-    document.querySelectorAll('[data-owner]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.owner; const {error}=await sb.from('stores').update({owner_email:$('oe-'+id).value.trim().toLowerCase()||null}).eq('id',id); if(error) toast(error.message,true); else toast('Sign-in email saved'); }));
-    document.querySelectorAll('[data-tier]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.tier; const v=parseInt($('ot-'+id).value,10); if(!(v>=1&&v<=999)){ toast('Enter a number from 1 to 999',true); return; } const {error}=await sb.from('stores').update({tier:v}).eq('id',id); if(error) toast(error.message,true); else toast('List position saved'); }));
+    renderStoresTab(stores);
 
     if(isMgr){
       const {data:draws}=await sb.from('draws').select('created_at,prize,visitors(name,phone,email)').order('created_at',{ascending:false});
