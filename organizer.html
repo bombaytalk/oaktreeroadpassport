@@ -57,7 +57,7 @@
       <div class="card"><h3 style="font-size:22px">Pending approvals</h3><p class="muted" style="font-size:15px">Nothing is live until you approve it.</p><div id="o-pending"></div></div>
     </div>
 
-    <div id="tab-stores" class="hidden"><div id="o-stores-list"></div></div>
+    <div id="tab-stores" class="hidden"><div class="card" style="padding:12px"><input id="st-q" type="search" inputmode="search" autocomplete="off" placeholder="Search stores: name, email, phone, person" style="width:100%;font:inherit;font-size:18px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:#fff;color:#1E1B22"></div><div id="o-stores-list"></div></div>
 
     <div id="tab-draw" class="hidden">
       <div class="card"><h3 style="font-size:22px">Draw a winner</h3><p class="muted" style="font-size:15px">Every scan is one ticket. Opted-in visitors only. A visitor can win once per campaign.</p>
@@ -97,11 +97,24 @@ wireSignIn(async user=>{
   sb.channel('org-live').on('postgres_changes',{event:'*',schema:'public',table:'scans'},softRefresh).on('postgres_changes',{event:'*',schema:'public',table:'stores'},softRefresh).subscribe();
 });
 
+window.__stText={}; window.__stDigits={};
+function applyStFilter(){
+  const inp=document.getElementById('st-q'); if(!inp) return;
+  const q=inp.value.trim().toLowerCase(), qd=q.replace(/\D/g,''); const root=document.getElementById('o-stores-list');
+  const old=document.getElementById('st-nomatch'); if(old) old.remove();
+  let shown=0, total=0;
+  root.querySelectorAll('.srow').forEach(r=>{ total++; const id=r.dataset.id; const t=window.__stText[id]||'';
+    const ok=!q || (qd.length>=3 && (window.__stDigits[id]||'').indexOf(qd)>=0) || q.split(/\s+/).filter(Boolean).every(w=>t.indexOf(w)>=0);
+    r.style.display=ok?'':'none'; if(ok) shown++; });
+  if(q && !shown && total){ root.insertAdjacentHTML('afterbegin','<p id="st-nomatch" class="muted" style="margin:8px 4px;font-size:17px">No store matches that. Try fewer letters.</p>'); }
+}
+document.getElementById('st-q').addEventListener('input',applyStFilter);
 let ST_CAT='All';
 function renderStoresTab(all){
   const list=(all||[]).filter(s=>s.status!=='pending');
   const tierOf=s=>(s.tier==null?100:s.tier), catOf=s=>s.category||'Other';
   const byId=Object.fromEntries(list.map(s=>[s.id,s]));
+  list.forEach(s=>{ window.__stText[s.id]=[s.name,s.category,s.owner_email,s.email,s.contact].filter(Boolean).join(' ').toLowerCase(); window.__stDigits[s.id]=String(s.phone||'').replace(/\D/g,''); });
   const byName=(a,b)=>String(a.name).localeCompare(String(b.name));
   const RL=list.filter(s=>tierOf(s)<100).sort((a,b)=>(tierOf(a)-tierOf(b))||byName(a,b)).map(s=>s.id);
   const rest=list.filter(s=>tierOf(s)>=100).sort(byName);
@@ -165,6 +178,7 @@ function renderStoresTab(all){
   list.filter(s=>s.status==='approved').forEach(s=>{ const el=$('oqr-'+s.id); if(el) qrInto(el,OTR.site+'?s='+s.id,s.logo_url); });
   root.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',async()=>{ try{ await rpc('store_set_status',{p_store:b.dataset.id,p_status:b.dataset.status}); toast(b.dataset.status==='approved'?'Approved':'Removed'); refresh(); }catch(e){ toast(e.message,true); } }));
   root.querySelectorAll('[data-owner]').forEach(b=>b.addEventListener('click',async()=>{ const id=b.dataset.owner; const {error}=await sb.from('stores').update({owner_email:$('oe-'+id).value.trim().toLowerCase()||null}).eq('id',id); if(error) toast(error.message,true); else toast('Sign-in email saved'); }));
+  applyStFilter();
 }
 
 function renderDaily(days){
