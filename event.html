@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B22">
+<title>Open Air Garba · Oak Tree Road</title>
+<meta name="description" content="Open Air Garba on Oak Tree Road in Iselin, NJ. October 15 and 16, 2026, 7 PM to 10 PM. Free entry.">
+<link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.nights{display:flex;gap:8px;margin:2px 0 14px}
+.nights a{flex:1;text-align:center;text-decoration:none;font-weight:800;font-size:18px;line-height:1.2;padding:10px;min-height:60px;border-radius:16px;border:2px solid var(--plum);background:#fff;color:var(--plum);display:flex;flex-direction:column;justify-content:center}
+.nights a small{display:block;font-size:14px;font-weight:700;opacity:.85}
+.nights a[aria-current="page"]{background:var(--plum);color:#fff}
+#flyerWrap{display:none;margin:0 0 14px}
+#flyerWrap img{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 10px 30px rgba(30,27,34,.18)}
+.evcard{position:relative;overflow:hidden;background:var(--ink);color:#fff;border-radius:24px;padding:26px 22px 24px;margin:0 0 14px;text-align:center;box-shadow:0 10px 30px rgba(30,27,34,.18)}
+.evcard:before{content:"";position:absolute;right:-110px;top:-120px;width:300px;height:300px;border-radius:50%;background:var(--plum)}
+.evcard>*{position:relative}
+.ev-presents{font-size:13.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#D9B877;line-height:1.5}
+.ev-presents b{color:#fff;letter-spacing:.2em}
+.ev-title{font-size:58px;line-height:1;font-weight:800;margin:18px 0 6px;color:#fff}
+.ev-date{display:inline-block;margin:10px 0 16px;padding:8px 18px;border:2px solid #D9B877;border-radius:999px;font-weight:800;font-size:16px;color:#fff}
+.ev-artist{font-size:36px;font-weight:800;line-height:1.1;color:#fff}
+.ev-artist small{display:block;font-size:13.5px;letter-spacing:.2em;text-transform:uppercase;color:#D9B877;margin-bottom:4px}
+.ev-free{margin:18px 0 4px;font-size:24px;font-weight:800;color:#D9B877}
+.ev-where{font-weight:700;font-size:17px;line-height:1.35}
+.ev-rain{margin-top:10px;font-size:15px;color:#D6D0C8}
+.facts{width:100%;border-collapse:collapse;font-size:17px}
+.facts td{padding:9px 0;vertical-align:top;border-top:1px solid var(--line)}
+.facts tr:first-child td{border-top:0}
+.facts td:first-child{color:var(--muted);font-weight:700;width:34%;padding-right:10px}
+.prz{background:var(--soft);border-radius:14px;padding:10px 12px;margin:8px 0}
+.prz .l{font-size:14px;font-weight:800;color:var(--muted)}
+.prz .v{font-weight:800}
+.actions a.btn{display:block;text-decoration:none;text-align:center;margin:10px 0}
+footer{text-align:center;color:var(--muted);font-size:15px;padding:12px 16px 30px}
+footer a{color:var(--plum);font-weight:700}
+</style>
+</head>
+<body>
+<header class="top"><h1>Open Air <span>Garba</span></h1><p id="sub"></p></header>
+<main class="wrap">
+  <div class="nights" role="navigation" aria-label="Choose a night">
+    <a href="event.html?night=thu" id="tab-thu">Thursday<small>Oct 15</small></a>
+    <a href="event.html?night=fri" id="tab-fri">Friday<small>Oct 16</small></a>
+  </div>
+
+  <div id="flyerWrap"><a id="flyerLink" href="#" target="_blank" rel="noopener"><img id="flyerImg" alt=""></a></div>
+
+  <div class="evcard" id="evcard">
+    <div class="ev-presents">Woodbridge Township &amp; Mayor John E. McCormac<br>in association with the Oak Tree Road Indian businesses<br><b>PRESENTS</b></div>
+    <div class="ev-title">Open Air<br>Garba</div>
+    <div class="ev-date" id="evdate"></div>
+    <div class="ev-artist"><small>Live</small><span id="evartist"></span></div>
+    <div class="ev-free">Free Garba entry</div>
+    <div class="ev-where">On Oak Tree Road<br>Between Middlesex Ave &amp; Correja Ave</div>
+    <div class="ev-rain">Rain date: Friday, October 23</div>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:22px;margin-bottom:6px">At a glance</h3>
+    <table class="facts">
+      <tr><td>When</td><td id="f-when"></td></tr>
+      <tr><td>Where</td><td>Oak Tree Road, Iselin, NJ, between Middlesex Ave and Correja Ave</td></tr>
+      <tr><td>Artist</td><td id="f-artist"></td></tr>
+      <tr><td>Entry</td><td>Free. No purchase necessary.</td></tr>
+      <tr><td>Street</td><td>Closed to traffic 5 PM to 11 PM. Please use a parking lot.</td></tr>
+      <tr><td>Rain date</td><td>Friday, October 23</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:22px">Prizes this night</h3>
+    <p class="muted" style="font-size:15px;margin:2px 0 6px">Scan a store's QR poster, collect a stamp, and every store is one entry. The drawing is after Aarti.</p>
+    <div id="prizes"></div>
+  </div>
+
+  <div class="actions">
+    <a class="btn" id="a-parking" href="parking.html">Parking for this night</a>
+    <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=Oak+Tree+Road%2C+Iselin%2C+NJ+08830" target="_blank" rel="noopener">Directions</a>
+    <a class="btn ghost" id="a-fb" href="#" target="_blank" rel="noopener">RSVP on Facebook</a>
+    <a class="btn ghost" href="index.html">Open my passport</a>
+    <a class="btn ghost" id="a-other" href="#"></a>
+  </div>
+</main>
+<footer>
+  <a href="rules.html">Drawing Rules</a> · <a href="privacy.html">Privacy Notice</a><br>
+  <a href="https://dotcodenetworks.com" target="_blank" rel="noopener" style="white-space:nowrap">Powered by DotCode Networks</a>
+</footer>
+<script>
+(function(){
+  var N={
+    thu:{day:'Thursday',short:'Thu, Oct 15',date:'Thursday, October 15',night:'Night 1',artist:'Umesh Patel',flyer:'flyer-thursday.jpg',fb:'https://www.facebook.com/events/4596507693965343/',other:'fri',otherLabel:'See Friday, Oct 16',
+         prizes:[['1st prize','20g gold bar, valued at $2,800'],['2nd prize','$500 gift vouchers from costume jewelry stores and parlors']]},
+    fri:{day:'Friday',short:'Fri, Oct 16',date:'Friday, October 16',night:'Night 2',artist:'Rex Dsouza',flyer:'flyer-friday.jpg',fb:'https://www.facebook.com/events/1645828060431820/',other:'thu',otherLabel:'See Thursday, Oct 15',
+         prizes:[['1st prize','1 oz gold bar, valued at $4,500'],['2nd prize','$1,000 gift certificate from 7 clothing stores'],['3rd prize','$500 gift cards from 5 restaurants']]}
+  };
+  var q=new URLSearchParams(location.search).get('night'); var k=(q==='fri')?'fri':'thu'; var n=N[k];
+  var $=function(id){return document.getElementById(id);};
+  var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+  document.title='Open Air Garba · '+n.date+' · Oak Tree Road';
+  $('sub').textContent=n.night+' · '+n.short+' · 7 to 10 PM';
+  $('tab-'+k).setAttribute('aria-current','page');
+  $('evdate').textContent=n.short.toUpperCase()+' · 7 TO 10 PM';
+  $('evartist').textContent=n.artist;
+  $('f-when').textContent=n.date+', 7 PM to 10 PM';
+  $('f-artist').textContent=n.artist+' (live)';
+  $('prizes').innerHTML=n.prizes.map(function(p){return '<div class="prz"><div class="l">'+esc(p[0])+'</div><div class="v">'+esc(p[1])+'</div></div>';}).join('');
+  $('a-fb').href=n.fb;
+  var o=N[n.other]; $('a-other').href='event.html?night='+n.other; $('a-other').textContent=n.otherLabel;
+  $('a-parking').textContent='Parking for '+n.day;
+  // Show the real flyer if its picture has been uploaded; otherwise the designed card above stays.
+  var img=$('flyerImg');
+  img.onload=function(){ if(img.naturalWidth>0){ $('flyerWrap').style.display='block'; $('evcard').style.display='none'; $('flyerLink').href=n.flyer; img.alt='Flyer for '+n.date+' with '+n.artist; } };
+  img.onerror=function(){ $('flyerWrap').style.display='none'; };
+  img.src=n.flyer;
+})();
+</script>
+</body>
+</html>
