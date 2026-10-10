@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B22">
+<title>Parking · Oak Tree Road Garba</title>
+<meta name="description" content="Live parking lots near Oak Tree Road for the Navratri Garba, October 15 and 16, 2026, Iselin NJ.">
+<link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.nights{display:flex;gap:8px;margin:4px 0 14px}
+.nights button{flex:1;font:inherit;font-weight:800;font-size:19px;line-height:1.2;padding:10px 10px;min-height:60px;border-radius:16px;border:2px solid var(--plum);background:#fff;color:var(--plum);cursor:pointer}
+.nights button small{display:block;font-size:15px;font-weight:700;opacity:.85}
+.nights button[aria-pressed="true"]{background:var(--plum);color:#fff}
+.banner{background:#FFF4D6;border:2px solid #E6B84B;border-radius:18px;padding:14px 16px;margin:0 0 14px;font-weight:700;font-size:19px}
+.banner small{display:block;font-weight:700;color:#8A6410;font-size:14px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
+.lot{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(30,27,34,.07)}
+.lot[data-off="true"]{background:#F1ECE2;border-style:dashed;box-shadow:none}
+.lot h2{font-size:23px;line-height:1.2;margin:0 0 2px}
+.lot .addr{color:var(--muted);font-weight:700;margin:0 0 10px}
+.chip{display:inline-block;font-weight:800;font-size:16px;padding:6px 14px;border-radius:999px;margin:0 0 10px}
+.chip.open{background:var(--ok-bg);color:var(--ok)}
+.chip.filling{background:#FFF0D1;color:#8A5A00}
+.chip.full{background:#FBE3E1;color:var(--bad)}
+.chip.closed,.chip.off{background:#E3D9C4;color:#5C554C}
+.live{background:var(--soft);border-radius:14px;padding:10px 12px;margin:0 0 10px;font-weight:700}
+.lot p{margin:4px 0}
+.lot .k{color:var(--muted);font-size:15px;font-weight:700}
+.btn.dir{display:inline-block;margin-top:10px;text-decoration:none;text-align:center}
+.lot[data-off="true"] .btn.dir{background:#D9D2C4;color:#6A6460}
+.street{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;margin:14px 0}
+.upd{color:var(--muted);font-size:15px;text-align:center;margin:14px 0 4px}
+.err{color:var(--bad);font-weight:700;text-align:center;margin:8px 0}
+.empty{text-align:center;color:var(--muted);padding:26px 8px}
+footer{text-align:center;color:var(--muted);font-size:15px;padding:18px 16px 28px}
+footer a{color:var(--plum);font-weight:700}
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+<header class="top"><h1>Park near <span>Oak Tree Road</span></h1><p>Navratri Garba · Oct 15 and 16 · Iselin, NJ</p></header>
+<main class="wrap">
+  <div class="nights" role="group" aria-label="Choose your night">
+    <button type="button" data-n="thu" aria-pressed="true">Thursday<small>Oct 15</small></button>
+    <button type="button" data-n="fri" aria-pressed="false">Friday<small>Oct 16</small></button>
+  </div>
+  <div id="banner"></div>
+  <div id="lots" aria-live="polite"><div class="empty">Loading the latest parking info…</div></div>
+  <div id="street"></div>
+  <div class="err" id="err" hidden></div>
+  <p class="upd" id="upd"></p>
+</main>
+<footer>
+  Lot hours and rules come from Woodbridge Township. Please follow posted signs.<br>
+  <a href="https://dotcodenetworks.com" target="_blank" rel="noopener" style="white-space:nowrap">Powered by DotCode Networks</a>
+</footer>
+<script>
+(function(){
+  var night='thu', DATA=null, KEY='otr_parking_v1';
+  // Default to Friday on Oct 16 (New Jersey time), otherwise Thursday.
+  try{ var ny=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'}); if(ny==='2026-10-16') night='fri'; }catch(e){}
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+  var LABEL={open:'Open',filling:'Filling up',full:'Full',closed:'Closed'};
+  var RANK={open:0,filling:1,full:2,closed:3};
+  function status(l){ var offTonight=(night==='thu'?!l.thu_open:!l.fri_open); if(offTonight) return {k:'off',label:'Not open this night',rank:9,off:true};
+    var s=LABEL[l.live_status]?l.live_status:'open'; return {k:s,label:LABEL[s],rank:RANK[s],off:false}; }
+  function render(){
+    if(!DATA) return;
+    document.querySelectorAll('.nights button').forEach(function(b){ b.setAttribute('aria-pressed',b.dataset.n===night?'true':'false'); });
+    document.getElementById('banner').innerHTML=DATA.banner?'<div class="banner" role="status"><small>Live update</small>'+esc(DATA.banner)+'</div>':'';
+    var lots=(DATA.lots||[]).map(function(l,i){ return {l:l,s:status(l),i:i}; }).sort(function(a,b){ return (a.s.rank-b.s.rank)||(a.i-b.i); });
+    document.getElementById('lots').innerHTML=lots.length?lots.map(function(x){
+      var l=x.l,s=x.s, note=(night==='thu'?l.thu_note:l.fri_note), q=encodeURIComponent(l.addr+', Iselin, NJ 08830');
+      return '<div class="lot" data-off="'+(s.off?'true':'false')+'"><h2>'+esc(l.addr)+'</h2>'+(l.place?'<p class="addr">'+esc(l.place)+'</p>':'<p class="addr"></p>')+
+        '<span class="chip '+s.k+'">'+esc((!s.off&&s.k==='open'&&note)?(/^open/i.test(note)?note:'Open · '+note):s.label)+'</span>'+
+        (l.live_note&&!s.off?'<div class="live">'+esc(l.live_note)+'</div>':'')+
+        (s.off&&note?'<p>'+esc(note)+'</p>':'')+
+        (l.hours?'<p><span class="k">Hours</span><br>'+esc(l.hours)+'</p>':'')+
+        (l.rule?'<p><span class="k">Rules</span><br>'+esc(l.rule)+'</p>':'')+
+        '<a class="btn dir" href="https://www.google.com/maps/search/?api=1&query='+q+'" target="_blank" rel="noopener">Directions</a></div>';
+    }).join(''):'<div class="empty">Parking details will appear here soon.</div>';
+    document.getElementById('street').innerHTML=DATA.street_note?'<div class="street"><h2 style="font-size:20px;margin-bottom:6px">Parking on Oak Tree Road itself</h2><p style="margin:0">'+esc(DATA.street_note)+'</p></div>':'';
+    var u=document.getElementById('upd');
+    if(DATA.updated_at){ var m=Math.max(0,Math.round((Date.now()-new Date(DATA.updated_at).getTime())/60000)); u.textContent='Last updated '+(m<1?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' hr ago':new Date(DATA.updated_at).toLocaleDateString([], {month:'short',day:'numeric'})); } else u.textContent='';
+  }
+  function load(){
+    return fetch(OTR.url+'/rest/v1/rpc/parking_public',{method:'POST',headers:{apikey:OTR.key,Authorization:'Bearer '+OTR.key,'Content-Type':'application/json'},body:JSON.stringify({p_org_slug:OTR.org})})
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(d){ DATA=d; document.getElementById('err').hidden=true; try{ localStorage.setItem(KEY,JSON.stringify(d)); }catch(e){} render(); })
+      .catch(function(){ var e=document.getElementById('err'); e.hidden=false; e.textContent=DATA?'Could not refresh. Showing the last update.':'Could not load parking info. Please try again in a moment.'; });
+  }
+  try{ var c=localStorage.getItem(KEY); if(c){ DATA=JSON.parse(c); render(); } }catch(e){}
+  document.querySelectorAll('.nights button').forEach(function(b){ b.addEventListener('click',function(){ night=b.dataset.n; render(); }); });
+  load();
+  setInterval(function(){ if(!document.hidden) load(); },60000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) load(); });
+})();
+</script>
+</body>
+</html>
