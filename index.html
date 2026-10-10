@@ -144,12 +144,13 @@ async function loadHome(){
   }catch(e){}
 }
 
+function showHome(){ $('passport').classList.add('hidden'); $('noaccess').classList.remove('hidden'); $('home').classList.remove('hidden'); loadHome(); }
 async function boot(){
   if(storeId){
     try{ const s=await rpc('store_public',{p_store:storeId}); if(s){ $('landing').classList.remove('hidden'); $('landing-store').textContent=s.name; if(s.logo_url){ $('landing-logo').src=s.logo_url; $('landing-logo').classList.remove('hidden'); } if(s.special){ $('landing-special').textContent='Festival special: '+s.special; $('landing-special').classList.remove('hidden'); } } }catch(e){}
   }
   if(!token){ if(storeId){ pendingStore=storeId; $('signup').classList.remove('hidden'); } else { $('noaccess').classList.remove('hidden'); $('home').classList.remove('hidden'); loadHome(); } return; }
-  if(storeId) await scan(storeId); else await render();
+  if(storeId) await scan(storeId); else { try{ await render(); }catch(e){ if(/unknown visitor/.test(e.message)){ try{localStorage.removeItem(TOK);}catch(_){} token=null; } else { toast(e.message,true); } showHome(); } }
 }
 $('v-join').addEventListener('click', async ()=>{
   $('v-err').textContent='';
