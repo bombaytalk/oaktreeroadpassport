@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Parking editor">
+<meta name="robots" content="noindex">
+<title>Oak Tree Road Passport — Parking editor</title>
+<link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.seg button{flex:1 1 40%;font:inherit;font-weight:800;font-size:18px;padding:12px 8px;min-height:52px;border-radius:14px;border:2px solid var(--line);background:#fff;color:var(--text);cursor:pointer}
+.seg button[aria-pressed="true"][data-st="open"]{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.seg button[aria-pressed="true"][data-st="filling"]{background:#FFF0D1;border-color:#C98A12;color:#8A5A00}
+.seg button[aria-pressed="true"][data-st="full"]{background:#FBE3E1;border-color:var(--bad);color:var(--bad)}
+.seg button[aria-pressed="true"][data-st="closed"]{background:#E3D9C4;border-color:#8C8478;color:#5C554C}
+.lotc h3{font-size:21px}
+.lotc details{margin:10px 0}
+.lotc summary{font-weight:800;cursor:pointer;padding:8px 0;color:var(--plum)}
+.chk{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-weight:700}
+.chk input{width:26px;height:26px}
+textarea{width:100%;font:inherit;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:#fff;color:var(--text);min-height:84px}
+.linkbox{word-break:break-all;background:var(--soft);border-radius:12px;padding:10px 12px;font-weight:700;margin:6px 0}
+.sub{color:var(--muted);font-size:16px;margin:2px 0 8px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="shared.js"></script>
+</head>
+<body>
+<header class="top"><h1>Parking <span>editor</span></h1><p>Organizer only</p></header>
+<main class="wrap">
+  <section id="out" class="card">
+    <h2 style="font-size:24px">Organizer sign-in</h2>
+    <label>Email</label><input id="si-email" inputmode="email" autocomplete="email">
+    <div style="margin-top:12px"><button class="btn" id="si-send">Send me a code</button></div>
+    <div id="si-step2" class="hidden"><label>Enter the code</label><input id="si-code" inputmode="numeric" autocomplete="one-time-code"><div style="margin-top:12px"><button class="btn" id="si-verify">Sign in</button></div></div>
+  </section>
+
+  <section id="in" class="hidden">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="muted" id="who"></span><button class="btn ghost small" id="signout">Sign out</button></div>
+
+    <div class="card">
+      <h2 style="font-size:22px">The link people scan</h2>
+      <p class="sub">This link never changes. Update the lots below and visitors see the new info within a minute.</p>
+      <div class="linkbox" id="pubLink"></div>
+      <div class="row" style="gap:10px"><a class="btn small" id="viewLink" target="_blank" rel="noopener" style="text-decoration:none">See what visitors see</a><button class="btn ghost small" id="copyLink">Copy link</button></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:22px">Message at the top</h2>
+      <p class="sub">Shows in a yellow box above the lots. Leave it empty for no message.</p>
+      <textarea id="b-text" maxlength="280" placeholder="Example: Grand St lot is full. Please use Marconi Ave."></textarea>
+      <div class="row" style="gap:10px;margin-top:10px"><button class="btn" id="b-save">Save message</button><button class="btn ghost" id="b-clear">Clear message</button></div>
+    </div>
+
+    <div id="lots"></div>
+
+    <div class="card"><button class="btn" id="add">Add a parking spot</button></div>
+
+    <div class="card">
+      <h2 style="font-size:22px">Note about parking on the street</h2>
+      <textarea id="s-text" maxlength="400"></textarea>
+      <div style="margin-top:10px"><button class="btn" id="s-save">Save note</button></div>
+    </div>
+  </section>
+</main>
+<footer style="text-align:center;color:var(--muted);font-size:15px;padding:12px 16px 28px">Oak Tree Road Passport<br><a href="https://dotcodenetworks.com" target="_blank" rel="noopener" style="white-space:nowrap">Powered by DotCode Networks</a></footer>
+<div class="toast" id="toast" role="status"></div>
+<script>
+let ORG=null, LOTS=[], INFO=null;
+const NIGHT_LABEL={open:'Open',filling:'Filling up',full:'Full',closed:'Closed'};
+$('signout').addEventListener('click',signOut);
+wireSignIn(async user=>{
+  const {data:orgs}=await sb.from('orgs').select('*').eq('slug',OTR.org).limit(1);
+  if(!orgs||!orgs.length){ $('out').innerHTML='<h2 style="font-size:22px">This email is not on the organizer team.</h2><p class="muted">Ask the owner to add you under Team.</p><button class="btn ghost small" onclick="signOut()">Sign out</button>'; return; }
+  ORG=orgs[0]; $('out').classList.add('hidden'); $('in').classList.remove('hidden'); $('who').textContent=user.email;
+  const pub=location.origin+location.pathname.replace(/[^/]*$/,'')+'parking.html';
+  $('pubLink').textContent=pub; $('viewLink').href=pub;
+  $('copyLink').addEventListener('click',async()=>{ try{ await navigator.clipboard.writeText(pub); toast('Link copied'); }catch(e){ toast('Press and hold the link above to copy it'); } });
+  await load();
+});
+async function load(){
+  const a=await sb.from('parking_lots').select('*').eq('org_id',ORG.id).order('sort').order('addr');
+  if(a.error){ toast(a.error.message,true); return; }
+  const b=await sb.from('parking_info').select('*').eq('org_id',ORG.id).limit(1);
+  LOTS=a.data||[]; INFO=(b.data&&b.data[0])||null;
+  if(document.activeElement!==$('b-text')) $('b-text').value=INFO?INFO.banner:'';
+  if(document.activeElement!==$('s-text')) $('s-text').value=INFO?INFO.street_note:'';
+  draw();
+}
+function lotCard(l){
+  const st=NIGHT_LABEL[l.live_status]?l.live_status:'open';
+  return `<div class="card lotc" data-id="${l.id}">
+    <div class="row" style="justify-content:space-between;align-items:flex-start"><h3 class="lt">${esc(l.place||l.addr)}</h3><span class="pill st">${esc(NIGHT_LABEL[st])}</span></div>
+    <div class="muted" style="font-size:16px">${esc(l.addr)}${l.visible?'':' · hidden from visitors'}</div>
+    <label>Status right now (tap to change, it saves instantly)</label>
+    <div class="seg">${['open','filling','full','closed'].map(k=>`<button type="button" data-st="${k}" aria-pressed="${k===st}">${NIGHT_LABEL[k]}</button>`).join('')}</div>
+    <label>Message for this lot (optional)</label><input class="f-live" value="${esc(l.live_note)}" placeholder="Example: Use the Marconi Ave lot instead">
+    <details><summary>Edit details</summary>
+      <label>Address</label><input class="f-addr" value="${esc(l.addr)}">
+      <label>Place or description</label><input class="f-place" value="${esc(l.place)}">
+      <label>Hours</label><input class="f-hours" value="${esc(l.hours)}">
+      <label>Rules</label><textarea class="f-rule">${esc(l.rule)}</textarea>
+      <div class="chk"><input type="checkbox" class="f-thu" ${l.thu_open?'checked':''}> Open Thursday, Oct 15</div>
+      <input class="f-thun" value="${esc(l.thu_note)}" placeholder="Thursday note, example: Open after 4 PM">
+      <div class="chk"><input type="checkbox" class="f-fri" ${l.fri_open?'checked':''}> Open Friday, Oct 16</div>
+      <input class="f-frin" value="${esc(l.fri_note)}" placeholder="Friday note, example: Open after 6 PM">
+      <div class="chk"><input type="checkbox" class="f-vis" ${l.visible?'checked':''}> Show this lot to visitors</div>
+      <label>Order on the page (smaller number comes first)</label><input class="f-sort" type="number" inputmode="numeric" value="${esc(l.sort)}">
+      <div style="margin-top:12px"><button type="button" class="btn ghost small" data-del>Delete this lot</button></div>
+    </details>
+    <div style="margin-top:10px"><button type="button" class="btn" data-save>Save this lot</button></div>
+  </div>`;
+}
+function draw(){
+  $('lots').innerHTML=LOTS.length?LOTS.map(lotCard).join(''):'<div class="card muted">No parking spots yet. Tap "Add a parking spot" below.</div>';
+  document.querySelectorAll('#lots .lotc').forEach(card=>{
+    const id=card.dataset.id;
+    card.querySelectorAll('[data-st]').forEach(b=>b.addEventListener('click',async()=>{
+      const {error}=await sb.from('parking_lots').update({live_status:b.dataset.st}).eq('id',id);
+      if(error){ toast(error.message,true); return; }
+      const l=LOTS.find(x=>x.id===id); if(l) l.live_status=b.dataset.st;
+      card.querySelectorAll('[data-st]').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+      card.querySelector('.st').textContent=NIGHT_LABEL[b.dataset.st]; toast('Saved: '+NIGHT_LABEL[b.dataset.st]);
+    }));
+    card.querySelector('[data-save]').addEventListener('click',async()=>{
+      const v=c=>card.querySelector(c); const addr=v('.f-addr').value.trim();
+      if(!addr){ toast('The address cannot be empty',true); return; }
+      const sort=parseInt(v('.f-sort').value,10);
+      const row={addr,place:v('.f-place').value.trim(),hours:v('.f-hours').value.trim(),rule:v('.f-rule').value.trim(),
+        thu_open:v('.f-thu').checked,thu_note:v('.f-thun').value.trim(),fri_open:v('.f-fri').checked,fri_note:v('.f-frin').value.trim(),
+        visible:v('.f-vis').checked,sort:isNaN(sort)?100:sort,live_note:v('.f-live').value.trim()};
+      const {error}=await sb.from('parking_lots').update(row).eq('id',id);
+      if(error){ toast(error.message,true); return; }
+      toast('Saved'); await load();
+    });
+    card.querySelector('[data-del]').addEventListener('click',async()=>{
+      if(!confirm('Delete this parking spot? Visitors will no longer see it.')) return;
+      const {error}=await sb.from('parking_lots').delete().eq('id',id);
+      if(error){ toast(error.message,true); return; }
+      toast('Deleted'); await load();
+    });
+  });
+}
+$('add').addEventListener('click',async()=>{
+  const max=LOTS.reduce((m,l)=>Math.max(m,l.sort||0),0);
+  const {data,error}=await sb.from('parking_lots').insert({org_id:ORG.id,addr:'New parking spot',place:'',sort:max+10}).select().limit(1);
+  if(error){ toast(error.message,true); return; }
+  toast('Added. Tap Edit details to fill it in.'); await load();
+  const id=data&&data[0]&&data[0].id; const card=id&&document.querySelector(`#lots [data-id="${id}"]`);
+  if(card){ card.querySelector('details').open=true; card.scrollIntoView({behavior:'smooth',block:'start'}); }
+});
+async function saveInfo(patch,msg){
+  const row=Object.assign({org_id:ORG.id,banner:(INFO&&INFO.banner)||'',street_note:(INFO&&INFO.street_note)||''},patch);
+  const {error}=await sb.from('parking_info').upsert(row,{onConflict:'org_id'});
+  if(error){ toast(error.message,true); return; }
+  INFO=Object.assign(INFO||{},row); toast(msg);
+}
+$('b-save').addEventListener('click',()=>saveInfo({banner:$('b-text').value.trim()},'Message saved'));
+$('b-clear').addEventListener('click',async()=>{ $('b-text').value=''; await saveInfo({banner:''},'Message cleared'); });
+$('s-save').addEventListener('click',()=>saveInfo({street_note:$('s-text').value.trim()},'Note saved'));
+</script>
+</body>
+</html>
