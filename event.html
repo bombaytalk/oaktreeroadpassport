@@ -94,9 +94,9 @@ footer a{color:var(--plum);font-weight:700}
 (function(){
   var N={
     thu:{day:'Thursday',short:'Thu, Oct 15',date:'Thursday, October 15',night:'Night 1',artist:'Umesh Patel',flyer:'flyer-thursday.jpg',fb:'https://www.facebook.com/events/4596507693965343/',other:'fri',otherLabel:'See Friday, Oct 16',
-         prizes:[['1st prize','20g gold bar, valued at $2,800'],['2nd prize','$500 gift vouchers from costume jewelry stores and parlors']]},
+         prizes:[['1st prize','20g gold bar, valued at $2,800'],['2nd prize','$500 in gift vouchers (combined total) from participating costume jewelry stores and beauty parlors']]},
     fri:{day:'Friday',short:'Fri, Oct 16',date:'Friday, October 16',night:'Night 2',artist:'Rex Dsouuza',flyer:'flyer-friday.jpg',fb:'https://www.facebook.com/events/1645828060431820/',other:'thu',otherLabel:'See Thursday, Oct 15',
-         prizes:[['1st prize','1 oz gold bar, valued at $4,500'],['2nd prize','$1,000 gift certificate from 7 clothing stores'],['3rd prize','$500 gift cards from 5 restaurants']]}
+         prizes:[['1st prize','1 oz gold bar, valued at $4,500'],['2nd prize','$1,000 in gift certificates (combined total) from 7 participating clothing stores'],['3rd prize','$500 in gift cards (combined total) from 5 participating restaurants']]}
   };
   var q=new URLSearchParams(location.search).get('night'); var k=(q==='fri')?'fri':'thu'; var n=N[k];
   var $=function(id){return document.getElementById(id);};
