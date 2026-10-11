@@ -71,7 +71,7 @@
         <div style="margin-top:12px"><button class="btn" id="d-go">Draw</button></div><div id="d-result" style="margin-top:14px"></div></details>
         <h3 style="font-size:18px;margin-top:18px">Winners so far</h3><div class="scrollx"><table><thead><tr><th>When</th><th>Prize</th><th>Winner</th><th>Contact</th></tr></thead><tbody id="d-list"></tbody></table></div>
       </div>
-      <div class="card"><h3 style="font-size:22px">Prizes shown to visitors</h3><p class="muted" style="font-size:15px">One per line as: Label | Title | Note</p><textarea id="p-text" rows="5"></textarea><div style="margin-top:10px"><button class="btn small" id="p-save">Save prizes</button></div></div>
+      <div class="card"><h3 style="font-size:22px">Prizes shown to visitors</h3><p class="muted" style="font-size:15px">One per line as: Label | Title | Note | Winners (optional, for example 7)</p><textarea id="p-text" rows="5"></textarea><div style="margin-top:10px"><button class="btn small" id="p-save">Save prizes</button></div></div>
     </div>
 
     <div id="tab-team" class="hidden">
@@ -227,7 +227,7 @@ async function refresh(){
       const {data:draws}=await sb.from('draws').select('created_at,prize,visitors(name,phone,email)').order('created_at',{ascending:false});
       window.DRAWS=draws||[]; $('d-list').innerHTML=(draws||[]).map(d=>`<tr><td>${fmtDate(d.created_at)} ${fmtTime(d.created_at)}</td><td>${esc(d.prize)}</td><td>${esc(d.visitors?.name)}</td><td>${esc(d.visitors?.phone||d.visitors?.email||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No draws yet.</td></tr>';
       const {data:camp}=await sb.from('campaigns').select('*').eq('org_id',ORG.id).eq('active',true).limit(1); window.CAMP=camp?.[0]; setTimeout(()=>{ if(window.renderDrawNights) renderDrawNights(); },0);
-      if(CAMP && !$('p-text').value) $('p-text').value=(CAMP.prizes||[]).map(p=>[p.label,p.title,p.note].join(' | ')).join('\n');
+      if(CAMP && !$('p-text').value) $('p-text').value=(CAMP.prizes||[]).map(p=>[p.label,p.title,p.note].concat(p.winners>1?[String(p.winners)]:[]).join(' | ')).join('\n');
       const {data:team}=await sb.from('team_members').select('*').order('created_at');
       $('t-list').innerHTML=(team||[]).map(t=>`<tr><td>${esc(t.email)}</td><td>${esc(t.role)}</td><td>${t.role==='owner'?'':`<button class="btn ghost small" data-remove="${t.id}">Remove</button>`}</td></tr>`).join('');
       document.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',async()=>{ if(!confirm('Remove this person from the team?')) return; const {error}=await sb.from('team_members').delete().eq('id',b.dataset.remove); if(error) toast(error.message,true); else { toast('Removed'); refresh(); } }));
@@ -236,8 +236,9 @@ async function refresh(){
     }
   }catch(e){ toast(e.message,true); }
 }
-// ---- Draw by night: pick a night, then draw each prize ----
+// ---- Draw by night: pick a night, then draw each prize (a prize with several winners gets one numbered card per winner) ----
 let DN_KEY = null;
+const DN_CLASSIC = /[?&]draw=classic\b/.test(location.search);
 const dnSleep = ms => new Promise(r => setTimeout(r, ms));
 function dnToday() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
 function dnNights() {
@@ -252,7 +253,7 @@ function dnNights() {
     const d = dateOf(label);
     if (d && (!cur || cur.date !== d)) { cur = nights.find(n => n.date === d); if (!cur) { cur = { label: label.split('\u00b7')[0].trim(), date: d, prizes: [] }; nights.push(cur); } }
     if (!cur) { cur = { label: 'Prizes', date: null, prizes: [] }; nights.push(cur); }
-    cur.prizes.push({ label: d ? label.replace(/^.*?\u00b7\s*/, '') : label, title, note: String(p.note || '').trim() });
+    cur.prizes.push({ label: d ? label.replace(/^.*?\u00b7\s*/, '') : label, title, note: String(p.note || '').trim(), winners: DN_CLASSIC ? 1 : Math.min(50, Math.max(1, parseInt(p.winners, 10) || 1)) });
   });
   return nights.filter(n => n.prizes.length);
 }
@@ -261,6 +262,11 @@ function dnStage(html) {
   st.innerHTML = html + '<div style="margin-top:44px"><button type="button" class="btn ghost" id="dn-stage-x" style="font-size:22px;min-height:60px;min-width:200px;background:transparent;color:#fff;border:3px solid #fff">Close</button></div>';
   st.style.display = 'flex';
   $('dn-stage-x').addEventListener('click', () => { st.style.display = 'none'; });
+}
+function dnPrizeStr(night, p, k, n) { return n > 1 ? `${night.label} \u00b7 ${p.label} (${k} of ${n}) \u00b7 ${p.title}` : `${night.label} \u00b7 ${p.label} \u00b7 ${p.title}`; }
+function dnWho(last, count) {
+  if (!last) return '';
+  return `<div class="special" style="margin-top:10px;font-size:20px"><strong>${esc(last.visitors?.name || '')}</strong> \u2014 ${esc(last.visitors?.phone || last.visitors?.email || '')}<br><span class="muted" style="font-size:15px">Drawn ${esc(fmtDate(last.created_at) + ' ' + fmtTime(last.created_at))}${count > 1 ? ` \u00b7 ${count - 1} earlier draw${count > 2 ? 's' : ''} for this one` : ''}</span></div>`;
 }
 function renderDrawNights() {
   const tabs = $('dn-tabs'), box = $('dn-prizes'); if (!tabs || !box) return;
@@ -273,12 +279,22 @@ function renderDrawNights() {
   tabs.querySelectorAll('[data-dn]').forEach(b => b.addEventListener('click', () => { DN_KEY = b.dataset.dn; renderDrawNights(); }));
   const drawn = window.DRAWS || [];
   box.innerHTML = night.prizes.map((p, i) => {
-    const str = `${night.label} \u00b7 ${p.label} \u00b7 ${p.title}`;
-    const prev = drawn.filter(d => d.prize === str), last = prev[0];
-    const who = last ? `<div class="special" style="margin-top:10px;font-size:20px"><strong>${esc(last.visitors?.name || '')}</strong> \u2014 ${esc(last.visitors?.phone || last.visitors?.email || '')}<br><span class="muted" style="font-size:15px">Drawn ${esc(fmtDate(last.created_at) + ' ' + fmtTime(last.created_at))}${prev.length > 1 ? ` \u00b7 ${prev.length - 1} earlier draw${prev.length > 2 ? 's' : ''} for this prize` : ''}</span></div>` : '';
-    return `<div class="card" style="margin:12px 0;padding:14px"><div class="muted" style="font-size:15px;font-weight:800">${esc(p.label)}</div><div style="font-weight:800;font-size:22px">${esc(p.title)}</div>${p.note ? `<div class="muted" style="font-size:15px">${esc(p.note)}</div>` : ''}<div style="margin-top:12px"><button type="button" class="btn" data-drawprize="${i}" data-again="${last ? '1' : ''}" style="font-size:20px;min-height:56px;width:100%">${last ? 'Draw again (winner not here)' : 'Draw ' + esc(p.label)}</button></div><div id="dn-res-${i}">${who}</div></div>`;
-  }).join('');
-  box.querySelectorAll('[data-drawprize]').forEach(b => b.addEventListener('click', () => dnDraw(night, night.prizes[+b.dataset.drawprize], +b.dataset.drawprize, b)));
+    const note = p.note ? `<div class="muted" style="font-size:15px">${esc(p.note)}</div>` : '';
+    if (p.winners <= 1) {
+      const prev = drawn.filter(d => d.prize === dnPrizeStr(night, p, 1, 1)), last = prev[0];
+      return `<div class="card" style="margin:12px 0;padding:14px"><div class="muted" style="font-size:15px;font-weight:800">${esc(p.label)}</div><div style="font-weight:800;font-size:22px">${esc(p.title)}</div>${note}<div style="margin-top:12px"><button type="button" class="btn" data-drawprize="${i}" data-again="${last ? '1' : ''}" style="font-size:20px;min-height:56px;width:100%">${last ? 'Draw again (winner not here)' : 'Draw ' + esc(p.label)}</button></div><div id="dn-res-${i}">${dnWho(last, prev.length)}</div></div>`;
+    }
+    let done = 0;
+    const slots = Array.from({ length: p.winners }, (_, j) => {
+      const k = j + 1, prev = drawn.filter(d => d.prize === dnPrizeStr(night, p, k, p.winners)), last = prev[0]; if (last) done++;
+      return `<div style="margin-top:12px;padding-top:12px;border-top:2px solid var(--line)"><div style="font-weight:800;font-size:19px">Winner ${k} of ${p.winners}</div><button type="button" class="btn" data-drawsub="${i}-${k}" data-again="${last ? '1' : ''}" style="font-size:20px;min-height:56px;width:100%;margin-top:8px">${last ? 'Draw again (winner not here)' : 'Draw winner ' + k}</button><div id="dn-res-${i}-${k}">${dnWho(last, prev.length)}</div></div>`;
+    }).join('');
+    return `<div class="card" style="margin:12px 0;padding:14px"><div class="muted" style="font-size:15px;font-weight:800">${esc(p.label)} \u00b7 ${p.winners} winners</div><div style="font-weight:800;font-size:22px">${esc(p.title)}</div>${note}<div style="font-size:17px;font-weight:800;color:#5A2438;margin-top:6px">${done} of ${p.winners} drawn</div>${slots}</div>`;
+  }).join('') + (DN_CLASSIC
+    ? '<p class="muted" style="font-size:15px;margin-top:14px">Simple view: one winner per prize. <a href="organizer.html">Back to numbered winners</a></p>'
+    : '<p class="muted" style="font-size:15px;margin-top:14px"><a href="organizer.html?draw=classic">Use the simple view</a> (one winner per prize).</p>');
+  box.querySelectorAll('[data-drawprize]').forEach(b => b.addEventListener('click', () => dnDraw(night, night.prizes[+b.dataset.drawprize], +b.dataset.drawprize, b, 1, 1)));
+  box.querySelectorAll('[data-drawsub]').forEach(b => b.addEventListener('click', () => { const [i, k] = b.dataset.drawsub.split('-').map(Number); const p = night.prizes[i]; dnDraw(night, p, i, b, k, p.winners); }));
   $('dn-info').textContent = night.date ? '' : 'This night has no date in its title, so it cannot be drawn here. Use "Draw any other prize".';
   if (night.date) {
     const cache = (window.__dnInfo = window.__dnInfo || {}), c = cache[night.date];
@@ -286,12 +302,13 @@ function renderDrawNights() {
     else rpc('org_daily', { p_org: ORG.id }).then(rows => { const r = (rows || []).find(x => x.day === night.date); const txt = r ? `${r.people} people have stamps for this night, ${r.scans} entries in all.` : 'No stamps yet for this night.'; cache[night.date] = { txt, t: Date.now() }; if (DN_KEY === (night.date || night.label)) $('dn-info').textContent = txt; }).catch(() => {});
   }
 }
-async function dnDraw(night, p, i, btn) {
+async function dnDraw(night, p, i, btn, k, n) {
   if (!night.date) { toast('This night has no date. Use "Draw any other prize".', true); return; }
-  const str = `${night.label} \u00b7 ${p.label} \u00b7 ${p.title}`;
-  if (btn.dataset.again && !confirm('Draw a new winner for this prize? The first draw stays on record.')) return;
-  btn.disabled = true; const res = $('dn-res-' + i);
-  const head = `<div style="font-size:26px;color:#D9B877;font-weight:800">${esc(night.label)}</div><div style="font-size:30px;font-weight:800;margin:6px 0 28px">${esc(p.label)}: ${esc(p.title)}</div>`;
+  const str = dnPrizeStr(night, p, k, n);
+  if (btn.dataset.again && !confirm('Draw a new winner for this one? The first draw stays on record.')) return;
+  btn.disabled = true; const res = $('dn-res-' + i + (n > 1 ? '-' + k : ''));
+  const what = n > 1 ? `${p.label}, winner ${k} of ${n}` : p.label;
+  const head = `<div style="font-size:26px;color:#D9B877;font-weight:800">${esc(night.label)}</div><div style="font-size:30px;font-weight:800;margin:6px 0 28px">${esc(what)}: ${esc(p.title)}</div>`;
   dnStage(head + '<div style="font-size:48px;font-weight:800;animation:dnp 1.1s ease-in-out infinite">Drawing\u2026</div>');
   try {
     const r = await rpc('draw_winner', { p_org: ORG.id, p_prize: str, p_night: night.date });
@@ -305,7 +322,7 @@ async function dnDraw(night, p, i, btn) {
 }
 window.renderDrawNights = renderDrawNights;
 $('d-go').addEventListener('click',async()=>{ try{ const r=await rpc('draw_winner',{p_org:ORG.id,p_prize:$('d-prize').value.trim()||'Prize'}); if(!r.ok){ $('d-result').innerHTML=`<p class="muted">${esc(r.reason)}</p>`; return; } $('d-result').innerHTML=`<div class="special" style="font-size:22px"><strong>${esc(r.name)}</strong> — ${esc(r.phone)}<br><span class="muted" style="font-size:16px">${r.tickets} of ${r.total_tickets} tickets (${Math.round(100*r.tickets/r.total_tickets)}% chance)</span></div>`; refresh(); }catch(e){ toast(e.message,true); } });
-$('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({label:a[0],title:a[1]||'',note:a[2]||''})); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else toast('Prizes saved'); });
+$('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>{ const w=parseInt(a[3],10); return Object.assign({label:a[0],title:a[1]||'',note:a[2]||''}, w>1?{winners:w}:{}); }); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else { CAMP.prizes=prizes; toast('Prizes saved'); if(window.renderDrawNights) renderDrawNights(); } });
 $('t-add').addEventListener('click',async()=>{ const email=$('t-email').value.trim().toLowerCase(); if(!email) return; const {error}=await sb.from('team_members').insert({org_id:ORG.id,email,role:$('t-role').value,added_by:$('who').textContent}); if(error) toast(error.message,true); else { $('t-email').value=''; toast('Added'); refresh(); } });
 $('o-export').addEventListener('click',async()=>{ try{ const vv=await rpc('org_export_visitors',{p_org:ORG.id}); download('visitors.csv',csv([['Name','Phone','Email','Agreed to drawing','OK to send offers','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone||'',x.email||'',x.opt_in?'yes':'no',x.marketing_ok?'yes':'no',new Date(x.created_at).toLocaleString(),x.entries||0])])); }catch(e){ toast(e.message,true); } });
 $('o-export-scans').addEventListener('click',async()=>{ try{ const data=await rpc('org_export_scans',{p_org:ORG.id}); download('scans.csv',csv([['When','Visitor','Phone','Email','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitor_name,x.phone||'',x.email||'',x.store_name])])); }catch(e){ toast(e.message,true); } });
