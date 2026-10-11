@@ -109,9 +109,10 @@ function applyStFilter(){
   if(q && !shown && total){ root.insertAdjacentHTML('afterbegin','<p id="st-nomatch" class="muted" style="margin:8px 4px;font-size:17px">No store matches that. Try fewer letters.</p>'); }
 }
 document.getElementById('st-q').addEventListener('input',applyStFilter);
-let ST_CAT='All';
+let ST_CAT='All', ST_REJ=false;
 function renderStoresTab(all){
-  const list=(all||[]).filter(s=>s.status!=='pending');
+  const rejCount=(all||[]).filter(s=>s.status==='rejected').length;
+  const list=(all||[]).filter(s=>s.status==='approved'||(ST_REJ&&s.status==='rejected'));
   const tierOf=s=>(s.tier==null?100:s.tier), catOf=s=>s.category||'Other';
   const byId=Object.fromEntries(list.map(s=>[s.id,s]));
   list.forEach(s=>{ window.__stText[s.id]=[s.name,s.category,s.owner_email,s.email,s.contact].filter(Boolean).join(' ').toLowerCase(); window.__stDigits[s.id]=String(s.phone||'').replace(/\D/g,''); });
@@ -154,10 +155,11 @@ function renderStoresTab(all){
     <div class="zh">Shown first in the app</div>
     <div class="dz" id="st-ranked" data-zone="ranked">${rankedShown.map(s=>rowHtml(s,true)).join('')||'<p class="muted" style="margin:8px">Nothing ranked here yet. Press Rank on a store, or drag one into this box.</p>'}</div>
     <div class="zh">Everyone else, listed alphabetically</div>
-    <div class="dz" id="st-rest" data-zone="rest">${restShown.map(s=>rowHtml(s,false)).join('')||'<p class="muted" style="margin:8px">No other stores in this view.</p>'}</div></div>`;
+    <div class="dz" id="st-rest" data-zone="rest">${restShown.map(s=>rowHtml(s,false)).join('')||'<p class="muted" style="margin:8px">No other stores in this view.</p>'}</div>${rejCount?`<div class="row" style="margin-top:12px"><button type="button" class="btn ghost small" id="st-rejtog">${ST_REJ?'Hide':'Show'} ${rejCount} rejected store${rejCount===1?'':'s'}</button></div>`:''}</div>`;
   openIds.forEach(id=>{ const d=document.querySelector(`#o-stores-list [data-det="${id}"]`); if(d) d.classList.remove('hidden'); });
   const root=$('o-stores-list');
   root.querySelectorAll('[data-stcat]').forEach(b=>b.addEventListener('click',()=>{ ST_CAT=b.dataset.stcat; renderStoresTab(all); }));
+  const rejBtn=root.querySelector('#st-rejtog'); if(rejBtn) rejBtn.addEventListener('click',()=>{ ST_REJ=!ST_REJ; renderStoresTab(all); });
   root.querySelectorAll('[data-tog]').forEach(b=>b.addEventListener('click',()=>{ const d=root.querySelector(`[data-det="${b.dataset.tog}"]`); d.classList.toggle('hidden'); }));
   root.querySelectorAll('[data-mv]').forEach(b=>b.addEventListener('click',()=>api.move(b.dataset.id,parseInt(b.dataset.mv,10))));
   root.querySelectorAll('[data-rank]').forEach(b=>b.addEventListener('click',()=>api.rank(b.dataset.rank)));
