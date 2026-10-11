@@ -60,9 +60,15 @@
     <div id="tab-stores" class="hidden"><div class="card" style="padding:12px"><input id="st-q" type="search" inputmode="search" autocomplete="off" placeholder="Search stores: name, email, phone, person" style="width:100%;font:inherit;font-size:18px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:#fff;color:#1E1B22"></div><div id="o-stores-list"></div></div>
 
     <div id="tab-draw" class="hidden">
-      <div class="card"><h3 style="font-size:22px">Draw a winner</h3><p class="muted" style="font-size:15px">Every scan is one ticket. Opted-in visitors only. A visitor can win once per campaign.</p>
+      <div class="card"><h3 style="font-size:22px">Draw a winner</h3><p class="muted" style="font-size:15px">Pick the night, then tap Draw next to a prize. Every stamp is one entry for that night. Opted-in visitors only. A person can win once.</p>
+        <div id="dn-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"></div>
+        <div id="dn-info" class="muted" style="font-size:16px;margin-bottom:6px"></div>
+        <div id="dn-prizes"></div>
+        <div id="dn-stage" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;background:#1E1B22;color:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px"></div>
+        <style>@keyframes dnp{0%,100%{opacity:.3}50%{opacity:1}}</style>
+        <details style="margin-top:18px"><summary style="font-weight:800;cursor:pointer;font-size:17px">Draw any other prize</summary>
         <label>Prize</label><input id="d-prize" placeholder="e.g. Thursday $100 gift card #1">
-        <div style="margin-top:12px"><button class="btn" id="d-go">Draw</button></div><div id="d-result" style="margin-top:14px"></div>
+        <div style="margin-top:12px"><button class="btn" id="d-go">Draw</button></div><div id="d-result" style="margin-top:14px"></div></details>
         <h3 style="font-size:18px;margin-top:18px">Winners so far</h3><div class="scrollx"><table><thead><tr><th>When</th><th>Prize</th><th>Winner</th><th>Contact</th></tr></thead><tbody id="d-list"></tbody></table></div>
       </div>
       <div class="card"><h3 style="font-size:22px">Prizes shown to visitors</h3><p class="muted" style="font-size:15px">One per line as: Label | Title | Note</p><textarea id="p-text" rows="5"></textarea><div style="margin-top:10px"><button class="btn small" id="p-save">Save prizes</button></div></div>
@@ -219,8 +225,8 @@ async function refresh(){
 
     if(isMgr){
       const {data:draws}=await sb.from('draws').select('created_at,prize,visitors(name,phone,email)').order('created_at',{ascending:false});
-      $('d-list').innerHTML=(draws||[]).map(d=>`<tr><td>${fmtDate(d.created_at)} ${fmtTime(d.created_at)}</td><td>${esc(d.prize)}</td><td>${esc(d.visitors?.name)}</td><td>${esc(d.visitors?.phone||d.visitors?.email||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No draws yet.</td></tr>';
-      const {data:camp}=await sb.from('campaigns').select('*').eq('org_id',ORG.id).eq('active',true).limit(1); window.CAMP=camp?.[0];
+      window.DRAWS=draws||[]; $('d-list').innerHTML=(draws||[]).map(d=>`<tr><td>${fmtDate(d.created_at)} ${fmtTime(d.created_at)}</td><td>${esc(d.prize)}</td><td>${esc(d.visitors?.name)}</td><td>${esc(d.visitors?.phone||d.visitors?.email||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No draws yet.</td></tr>';
+      const {data:camp}=await sb.from('campaigns').select('*').eq('org_id',ORG.id).eq('active',true).limit(1); window.CAMP=camp?.[0]; setTimeout(()=>{ if(window.renderDrawNights) renderDrawNights(); },0);
       if(CAMP && !$('p-text').value) $('p-text').value=(CAMP.prizes||[]).map(p=>[p.label,p.title,p.note].join(' | ')).join('\n');
       const {data:team}=await sb.from('team_members').select('*').order('created_at');
       $('t-list').innerHTML=(team||[]).map(t=>`<tr><td>${esc(t.email)}</td><td>${esc(t.role)}</td><td>${t.role==='owner'?'':`<button class="btn ghost small" data-remove="${t.id}">Remove</button>`}</td></tr>`).join('');
@@ -230,6 +236,74 @@ async function refresh(){
     }
   }catch(e){ toast(e.message,true); }
 }
+// ---- Draw by night: pick a night, then draw each prize ----
+let DN_KEY = null;
+const dnSleep = ms => new Promise(r => setTimeout(r, ms));
+function dnToday() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
+function dnNights() {
+  const C = window.CAMP; if (!C) return null;
+  const yr = String(C.starts_on || '2026').slice(0, 4);
+  const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  const dateOf = t => { const m = String(t || '').match(/\b([A-Za-z]{3})[A-Za-z]*\.?\s+(\d{1,2})\b/); if (!m || !MON[m[1].toLowerCase()]) return null; return yr + '-' + String(MON[m[1].toLowerCase()]).padStart(2, '0') + '-' + String(+m[2]).padStart(2, '0'); };
+  const nights = []; let cur = null;
+  (C.prizes || []).forEach(p => {
+    if (!p) return; const title = String(p.title || '').trim(); const label = String(p.label || '').trim();
+    if (!title) { const nl = label.replace(/[\s\u00b7]+$/, ''); cur = { label: nl, date: dateOf(nl), prizes: [] }; nights.push(cur); return; }
+    const d = dateOf(label);
+    if (d && (!cur || cur.date !== d)) { cur = nights.find(n => n.date === d); if (!cur) { cur = { label: label.split('\u00b7')[0].trim(), date: d, prizes: [] }; nights.push(cur); } }
+    if (!cur) { cur = { label: 'Prizes', date: null, prizes: [] }; nights.push(cur); }
+    cur.prizes.push({ label: d ? label.replace(/^.*?\u00b7\s*/, '') : label, title, note: String(p.note || '').trim() });
+  });
+  return nights.filter(n => n.prizes.length);
+}
+function dnStage(html) {
+  const st = $('dn-stage');
+  st.innerHTML = html + '<div style="margin-top:44px"><button type="button" class="btn ghost" id="dn-stage-x" style="font-size:22px;min-height:60px;min-width:200px;background:transparent;color:#fff;border:3px solid #fff">Close</button></div>';
+  st.style.display = 'flex';
+  $('dn-stage-x').addEventListener('click', () => { st.style.display = 'none'; });
+}
+function renderDrawNights() {
+  const tabs = $('dn-tabs'), box = $('dn-prizes'); if (!tabs || !box) return;
+  const nights = dnNights();
+  if (!nights) { box.innerHTML = '<p class="muted">Loading the prizes\u2026</p>'; return; }
+  if (!nights.length) { tabs.innerHTML = ''; $('dn-info').textContent = ''; box.innerHTML = '<p class="muted">No prizes are set yet. Add them in "Prizes shown to visitors" below, or use "Draw any other prize".</p>'; return; }
+  if (!DN_KEY || !nights.some(n => (n.date || n.label) === DN_KEY)) { const t = nights.find(n => n.date === dnToday()) || nights[0]; DN_KEY = t.date || t.label; }
+  const night = nights.find(n => (n.date || n.label) === DN_KEY);
+  tabs.innerHTML = nights.map(n => { const k = n.date || n.label; return `<button type="button" class="btn ${k === DN_KEY ? '' : 'ghost'}" data-dn="${esc(k)}" aria-pressed="${k === DN_KEY}" style="font-size:20px;min-height:56px">${esc(n.label)}</button>`; }).join('');
+  tabs.querySelectorAll('[data-dn]').forEach(b => b.addEventListener('click', () => { DN_KEY = b.dataset.dn; renderDrawNights(); }));
+  const drawn = window.DRAWS || [];
+  box.innerHTML = night.prizes.map((p, i) => {
+    const str = `${night.label} \u00b7 ${p.label} \u00b7 ${p.title}`;
+    const prev = drawn.filter(d => d.prize === str), last = prev[0];
+    const who = last ? `<div class="special" style="margin-top:10px;font-size:20px"><strong>${esc(last.visitors?.name || '')}</strong> \u2014 ${esc(last.visitors?.phone || last.visitors?.email || '')}<br><span class="muted" style="font-size:15px">Drawn ${esc(fmtDate(last.created_at) + ' ' + fmtTime(last.created_at))}${prev.length > 1 ? ` \u00b7 ${prev.length - 1} earlier draw${prev.length > 2 ? 's' : ''} for this prize` : ''}</span></div>` : '';
+    return `<div class="card" style="margin:12px 0;padding:14px"><div class="muted" style="font-size:15px;font-weight:800">${esc(p.label)}</div><div style="font-weight:800;font-size:22px">${esc(p.title)}</div>${p.note ? `<div class="muted" style="font-size:15px">${esc(p.note)}</div>` : ''}<div style="margin-top:12px"><button type="button" class="btn" data-drawprize="${i}" data-again="${last ? '1' : ''}" style="font-size:20px;min-height:56px;width:100%">${last ? 'Draw again (winner not here)' : 'Draw ' + esc(p.label)}</button></div><div id="dn-res-${i}">${who}</div></div>`;
+  }).join('');
+  box.querySelectorAll('[data-drawprize]').forEach(b => b.addEventListener('click', () => dnDraw(night, night.prizes[+b.dataset.drawprize], +b.dataset.drawprize, b)));
+  $('dn-info').textContent = night.date ? '' : 'This night has no date in its title, so it cannot be drawn here. Use "Draw any other prize".';
+  if (night.date) {
+    const cache = (window.__dnInfo = window.__dnInfo || {}), c = cache[night.date];
+    if (c && Date.now() - c.t < 60000) $('dn-info').textContent = c.txt;
+    else rpc('org_daily', { p_org: ORG.id }).then(rows => { const r = (rows || []).find(x => x.day === night.date); const txt = r ? `${r.people} people have stamps for this night, ${r.scans} entries in all.` : 'No stamps yet for this night.'; cache[night.date] = { txt, t: Date.now() }; if (DN_KEY === (night.date || night.label)) $('dn-info').textContent = txt; }).catch(() => {});
+  }
+}
+async function dnDraw(night, p, i, btn) {
+  if (!night.date) { toast('This night has no date. Use "Draw any other prize".', true); return; }
+  const str = `${night.label} \u00b7 ${p.label} \u00b7 ${p.title}`;
+  if (btn.dataset.again && !confirm('Draw a new winner for this prize? The first draw stays on record.')) return;
+  btn.disabled = true; const res = $('dn-res-' + i);
+  const head = `<div style="font-size:26px;color:#D9B877;font-weight:800">${esc(night.label)}</div><div style="font-size:30px;font-weight:800;margin:6px 0 28px">${esc(p.label)}: ${esc(p.title)}</div>`;
+  dnStage(head + '<div style="font-size:48px;font-weight:800;animation:dnp 1.1s ease-in-out infinite">Drawing\u2026</div>');
+  try {
+    const r = await rpc('draw_winner', { p_org: ORG.id, p_prize: str, p_night: night.date });
+    if (!r.ok) { $('dn-stage').style.display = 'none'; res.innerHTML = `<p class="muted" style="font-size:17px;margin-top:10px">${esc(r.reason)}</p>`; return; }
+    await dnSleep(3000);
+    dnStage(head + '<div style="font-size:26px">The winner is</div><div style="font-size:60px;font-weight:800;margin-top:10px">' + esc(r.name) + '</div>');
+    res.innerHTML = `<div class="special" style="margin-top:10px;font-size:20px"><strong>${esc(r.name)}</strong> \u2014 ${esc(r.phone)}<br><span class="muted" style="font-size:15px">${r.tickets} of ${r.total_tickets} entries for ${esc(night.label)}</span></div>`;
+    refresh();
+  } catch (e) { $('dn-stage').style.display = 'none'; toast(e.message, true); }
+  finally { btn.disabled = false; }
+}
+window.renderDrawNights = renderDrawNights;
 $('d-go').addEventListener('click',async()=>{ try{ const r=await rpc('draw_winner',{p_org:ORG.id,p_prize:$('d-prize').value.trim()||'Prize'}); if(!r.ok){ $('d-result').innerHTML=`<p class="muted">${esc(r.reason)}</p>`; return; } $('d-result').innerHTML=`<div class="special" style="font-size:22px"><strong>${esc(r.name)}</strong> — ${esc(r.phone)}<br><span class="muted" style="font-size:16px">${r.tickets} of ${r.total_tickets} tickets (${Math.round(100*r.tickets/r.total_tickets)}% chance)</span></div>`; refresh(); }catch(e){ toast(e.message,true); } });
 $('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({label:a[0],title:a[1]||'',note:a[2]||''})); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else toast('Prizes saved'); });
 $('t-add').addEventListener('click',async()=>{ const email=$('t-email').value.trim().toLowerCase(); if(!email) return; const {error}=await sb.from('team_members').insert({org_id:ORG.id,email,role:$('t-role').value,added_by:$('who').textContent}); if(error) toast(error.message,true); else { $('t-email').value=''; toast('Added'); refresh(); } });
