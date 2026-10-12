@@ -14,22 +14,22 @@
 <script src="config.js"></script>
 </head>
 <body>
-<header class="top"><h1>Oak Tree Road <span>Passport</span></h1><p>For stores · sign up once, see every scan</p></header>
+<header class="top"><h1>Oak Tree Road <span>Passport</span></h1><p>For stores · sign up, get approved, see every scan</p></header>
 <main class="wrap">
 
   <!-- signed out: apply OR sign in -->
   <section id="out">
-    <div class="card" id="signin">
-      <h2 style="font-size:24px">Already approved? Sign in</h2>
-      <p class="muted" style="margin:6px 0 0">Use the email you gave when you signed up. We'll send a six-digit code.</p>
-      <label>Email</label><input id="si-email" inputmode="email" autocomplete="email" placeholder="you@yourstore.com">
-      <div style="margin-top:12px"><button class="btn" id="si-send">Send me a code</button></div>
-      <div id="si-step2" class="hidden"><label>Enter the code from your email</label><input id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"><div style="margin-top:12px"><button class="btn" id="si-verify">Sign in</button></div><p class="muted" style="font-size:15px">If the email has a button instead of a code, just tap the button.</p></div>
+        <div class="card" id="how">
+      <h2 style="font-size:24px">How it works</h2>
+      <p style="margin:10px 0 0;font-size:18px;line-height:1.45"><strong>1. Sign up</strong> your store in Step 1 below.</p>
+      <p style="margin:8px 0 0;font-size:18px;line-height:1.45"><strong>2. We approve you.</strong> This is not instant. The organizer reviews every store.</p>
+      <p style="margin:8px 0 0;font-size:18px;line-height:1.45"><strong>3. Sign in</strong> with the same email in Step 2, and your QR poster appears.</p>
+      <p class="muted" style="margin:12px 0 0"><a href="#signin" style="color:var(--plum);font-weight:800">Already approved? Jump to Step 2</a></p>
     </div>
 
     <div class="card" id="apply">
-      <h2 style="font-size:24px">New store? Add yours</h2>
-      <p class="muted" style="margin:6px 0 0">Only the store name and one contact are required. The organizer approves you, then your QR poster appears here.</p>
+      <h2 style="font-size:24px">Step 1. New store? Sign up here</h2>
+      <p class="muted" style="margin:6px 0 0">Only the store name and one contact are required. After you submit, the organizer approves you. Then come back to Step 2 below to sign in and get your QR poster.</p>
       <label>Store name <small>(required)</small></label><input id="a-name">
       <label>Type of store</label><select id="a-cat"><option value="">Choose…</option><option>Restaurant</option><option>Sweets & Snacks</option><option>Bakery</option><option>Coffee Shop</option><option>Grocery Store</option><option>Saree & Clothing</option><option>Jewelry Store</option><option>Beauty & Salon</option><option>Electronics</option><option>Services</option><option>Other</option></select>
       <label>Email <small>(this becomes your sign-in)</small></label><input id="a-email" inputmode="email" placeholder="you@yourstore.com">
@@ -49,7 +49,15 @@
       <label style="display:flex;gap:12px;align-items:flex-start;font-weight:600;font-size:17px;line-height:1.4;margin-top:16px"><input type="checkbox" id="a-ack" style="width:26px;height:26px;margin-top:2px;flex:none"><span>I understand that customers who choose to receive offers can remove themselves at any time. When they do, I will delete them from my own lists and stop contacting them within 14 days.</span></label>
       <div style="margin-top:18px"><button class="btn" id="a-submit">Submit my store</button></div>
       <p class="err" id="a-err"></p>
-      <div id="a-done" class="special hidden"><strong>Submitted.</strong> The organizer will review it. Once approved, sign in above with your email to get your QR poster.</div>
+      <div id="a-done" class="special hidden"><strong>Submitted.</strong> The organizer will review it. Once approved, come back to Step 2 below and sign in with the same email to get your QR poster.</div>
+    </div>
+
+    <div class="card" id="signin">
+      <h2 style="font-size:24px">Step 2. Already approved? Sign in</h2>
+      <p class="muted" style="margin:6px 0 0">Only for approved stores. Use the same email you signed up with. We'll send a six-digit code. New here? Do Step 1 above first.</p>
+      <label>Email</label><input id="si-email" inputmode="email" autocomplete="email" placeholder="you@yourstore.com">
+      <div style="margin-top:12px"><button class="btn" id="si-send">Send me a code</button></div>
+      <div id="si-step2" class="hidden"><label>Enter the code from your email</label><input id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"><div style="margin-top:12px"><button class="btn" id="si-verify">Sign in</button></div><p class="muted" style="font-size:15px">If the email has a button instead of a code, just tap the button.</p></div>
     </div>
   </section>
 
