@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1E1B22">
 <title>Open Air Garba · Oak Tree Road</title>
-<meta name="description" content="Open Air Garba on Oak Tree Road in Iselin, NJ. October 15 and 16, 2026, 7 PM to 10 PM. Free entry.">
+<meta name="description" content="Open Air Garba on Oak Tree Road in Iselin, NJ. October 22 and 23, 2026, 7 PM to 10 PM. Free entry.">
 <link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
@@ -44,8 +44,8 @@ footer a{color:var(--plum);font-weight:700}
 <header class="top"><h1>Open Air <span>Garba</span></h1><p id="sub"></p></header>
 <main class="wrap">
   <div class="nights" role="navigation" aria-label="Choose a night">
-    <a href="event.html?night=thu" id="tab-thu">Thursday<small>Oct 15</small></a>
-    <a href="event.html?night=fri" id="tab-fri">Friday<small>Oct 16</small></a>
+    <a href="event.html?night=thu" id="tab-thu">Thursday<small>Oct 22</small></a>
+    <a href="event.html?night=fri" id="tab-fri">Friday<small>Oct 23</small></a>
   </div>
 
   <div id="flyerWrap"><a id="flyerLink" href="#" target="_blank" rel="noopener"><img id="flyerImg" alt=""></a></div>
@@ -57,7 +57,7 @@ footer a{color:var(--plum);font-weight:700}
     <div class="ev-artist"><small>Live</small><span id="evartist"></span></div>
     <div class="ev-free">Free Garba entry</div>
     <div class="ev-where">On Oak Tree Road<br>Between Middlesex Ave &amp; Correja Ave</div>
-    <div class="ev-rain">Rain date: Friday, October 23</div>
+    <div class="ev-rain">Rain date: To be confirmed</div>
   </div>
 
   <div class="card">
@@ -68,7 +68,7 @@ footer a{color:var(--plum);font-weight:700}
       <tr><td>Artist</td><td id="f-artist"></td></tr>
       <tr><td>Entry</td><td>Free. No purchase necessary.</td></tr>
       <tr><td>Street</td><td>Closed to traffic 5 PM to 11 PM. Please use a parking lot.</td></tr>
-      <tr><td>Rain date</td><td>Friday, October 23</td></tr>
+      <tr><td>Rain date</td><td>To be confirmed</td></tr>
     </table>
   </div>
 
@@ -93,9 +93,9 @@ footer a{color:var(--plum);font-weight:700}
 <script>
 (function(){
   var N={
-    thu:{day:'Thursday',short:'Thu, Oct 15',date:'Thursday, October 15',night:'Night 1',artist:'Umesh Patel',flyer:'flyer-thursday.jpg',fb:'https://www.facebook.com/events/4596507693965343/',other:'fri',otherLabel:'See Friday, Oct 16',
+    thu:{day:'Thursday',short:'Thu, Oct 22',date:'Thursday, October 22',night:'Night 1',artist:'Umesh Patel',flyer:'flyer-thursday.jpg',fb:'https://www.facebook.com/events/4596507693965343/',other:'fri',otherLabel:'See Friday, Oct 23',
          prizes:[['1st prize','20g gold bar, valued at $2,800'],['2nd prize','$500 in gift vouchers (combined total) from participating costume jewelry stores and beauty parlors']]},
-    fri:{day:'Friday',short:'Fri, Oct 16',date:'Friday, October 16',night:'Night 2',artist:'Rex Dsouuza',flyer:'flyer-friday.jpg',fb:'https://www.facebook.com/events/1645828060431820/',other:'thu',otherLabel:'See Thursday, Oct 15',
+    fri:{day:'Friday',short:'Fri, Oct 23',date:'Friday, October 23',night:'Night 2',artist:'Rex Dsouuza',flyer:'flyer-friday.jpg',fb:'https://www.facebook.com/events/1645828060431820/',other:'thu',otherLabel:'See Thursday, Oct 22',
          prizes:[['1st prize','1 oz gold bar, valued at $4,500'],['2nd prize','$1,000 in gift certificates (combined total) from 7 participating clothing stores'],['3rd prize','$500 in gift cards (combined total) from 5 participating restaurants']]}
   };
   var q=new URLSearchParams(location.search).get('night'); var k=(q==='fri')?'fri':'thu'; var n=N[k];
