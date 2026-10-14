@@ -52,7 +52,7 @@
   <section id="passport" class="hidden">
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <div><div class="muted" style="font-size:15px">Hi, <strong id="v-hello"></strong></div><div class="big" id="v-entries">0</div><div style="font-weight:800;margin-top:-2px">drawing entries</div></div>
+        <div><div class="muted" style="font-size:15px">Hi, <strong id="v-hello"></strong></div><div class="muted" style="font-size:14px;margin-top:2px">Passport code <strong id="v-code" style="color:var(--plum);letter-spacing:.06em"></strong></div><div class="big" id="v-entries">0</div><div style="font-weight:800;margin-top:-2px">drawing entries</div></div>
         <div style="text-align:right"><div class="muted" style="font-size:15px">stamps</div><div class="big" id="v-count">0</div><div class="muted" style="font-size:15px" id="v-total"></div></div>
       </div>
       <div class="stamps" id="v-stamps"></div>
@@ -190,7 +190,7 @@ async function render(highlight){
   const p=await rpc('visitor_passport',{p_token:token});
   $('landing').classList.add('hidden'); $('passport').classList.remove('hidden');
   if(p.tagline) $('tagline').textContent=p.tagline+' · Scan · Stamp · Win';
-  $('v-hello').textContent=p.name.split(' ')[0]; $('v-entries').textContent=p.entries;
+  $('v-hello').textContent=p.name.split(' ')[0]; $('v-code').textContent=p.code||''; $('v-entries').textContent=p.entries;
   const done=p.stores.filter(s=>s.stamped); $('v-count').textContent=done.length; $('v-total').textContent='of '+p.stores.length+' stores';
   $('v-stamps').innerHTML=p.stores.map(s=>`<div class="stamp ${s.stamped?'done':''} ${s.id===highlight?'stamp-anim':''}" style="${s.stamped&&s.brand_color?'border-color:'+esc(s.brand_color):''}">${s.logo_url?`<img src="${esc(s.logo_url)}" alt="" style="width:44px;height:44px;object-fit:contain;${s.stamped?'':'opacity:.35;filter:grayscale(1)'}">`:(s.stamped?'<div class="mark">✦</div>':'')}<div>${esc(s.name)}</div></div>`).join('');
   const last = highlight ? p.stores.find(s=>s.id===highlight) : null;
