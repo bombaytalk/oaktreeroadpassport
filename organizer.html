@@ -48,7 +48,6 @@
       <div class="card"><h3 style="font-size:22px">Links</h3>
         <p style="margin:6px 0"><strong>Store sign-up & sign-in:</strong><br><code id="lnk-store" style="font-size:15px;word-break:break-all"></code></p>
         <p style="margin:6px 0"><strong>This organizer page:</strong><br><code id="lnk-org" style="font-size:15px;word-break:break-all"></code></p>
-        <div class="row" style="margin-top:10px"><button class="btn ghost small" id="o-export">Export visitors (CSV)</button><button class="btn ghost small" id="o-export-scans">Export scans (CSV)</button></div>
       </div>
     </div>
 
@@ -324,8 +323,6 @@ window.renderDrawNights = renderDrawNights;
 $('d-go').addEventListener('click',async()=>{ try{ const r=await rpc('draw_winner',{p_org:ORG.id,p_prize:$('d-prize').value.trim()||'Prize'}); if(!r.ok){ $('d-result').innerHTML=`<p class="muted">${esc(r.reason)}</p>`; return; } $('d-result').innerHTML=`<div class="special" style="font-size:22px"><strong>${esc(r.name)}</strong> — ${esc(r.phone)}<br><span class="muted" style="font-size:16px">${r.tickets} of ${r.total_tickets} tickets (${Math.round(100*r.tickets/r.total_tickets)}% chance)</span></div>`; refresh(); }catch(e){ toast(e.message,true); } });
 $('p-save').addEventListener('click',async()=>{ const prizes=$('p-text').value.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>{ const w=parseInt(a[3],10); return Object.assign({label:a[0],title:a[1]||'',note:a[2]||''}, w>1?{winners:w}:{}); }); const {error}=await sb.from('campaigns').update({prizes}).eq('id',CAMP.id); if(error) toast(error.message,true); else { CAMP.prizes=prizes; toast('Prizes saved'); if(window.renderDrawNights) renderDrawNights(); } });
 $('t-add').addEventListener('click',async()=>{ const email=$('t-email').value.trim().toLowerCase(); if(!email) return; const {error}=await sb.from('team_members').insert({org_id:ORG.id,email,role:$('t-role').value,added_by:$('who').textContent}); if(error) toast(error.message,true); else { $('t-email').value=''; toast('Added'); refresh(); } });
-$('o-export').addEventListener('click',async()=>{ try{ const vv=await rpc('org_export_visitors',{p_org:ORG.id}); download('visitors.csv',csv([['Name','Phone','Email','Agreed to drawing','OK to send offers','Joined','Entries'],...(vv||[]).map(x=>[x.name,x.phone||'',x.email||'',x.opt_in?'yes':'no',x.marketing_ok?'yes':'no',new Date(x.created_at).toLocaleString(),x.entries||0])])); }catch(e){ toast(e.message,true); } });
-$('o-export-scans').addEventListener('click',async()=>{ try{ const data=await rpc('org_export_scans',{p_org:ORG.id}); download('scans.csv',csv([['When','Visitor','Phone','Email','Store'],...(data||[]).map(x=>[new Date(x.created_at).toLocaleString(),x.visitor_name,x.phone||'',x.email||'',x.store_name])])); }catch(e){ toast(e.message,true); } });
 </script>
 </body>
 </html>
